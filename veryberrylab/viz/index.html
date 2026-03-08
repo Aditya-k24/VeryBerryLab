@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VeryBerryLab — Strawberry Phenotyping 4</title>
+  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js" charset="utf-8"></script>
+  <style>
+    /* ------------------------------------------------------------------ */
+    /* Base styles                                                          */
+    /* ------------------------------------------------------------------ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                   "Helvetica Neue", Arial, sans-serif;
+      background: #f8f9fa;
+      color: #333;
+      line-height: 1.6;
+    }
+
+    header {
+      background: linear-gradient(135deg, #1a6b3a 0%, #2e9954 100%);
+      color: white;
+      padding: 1.5rem 2rem;
+    }
+    header h1  { font-size: 1.6rem; font-weight: 700; }
+    header p   { font-size: 0.95rem; opacity: 0.85; margin-top: 0.25rem; }
+
+    main { max-width: 1280px; margin: 0 auto; padding: 1.5rem 1rem; }
+
+    /* ------------------------------------------------------------------ */
+    /* Controls panel                                                       */
+    /* ------------------------------------------------------------------ */
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: flex-end;
+      background: white;
+      border: 1px solid #dee2e6;
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 1.25rem;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+    .control-group { display: flex; flex-direction: column; gap: 0.3rem; }
+    .control-group label { font-size: 0.8rem; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: 0.04em; }
+    .control-group select, .control-group input[type=range] {
+      padding: 0.35rem 0.6rem;
+      border: 1px solid #ced4da;
+      border-radius: 5px;
+      font-size: 0.9rem;
+      background: white;
+      cursor: pointer;
+      min-width: 180px;
+    }
+    .control-group select:focus { outline: 2px solid #2e9954; }
+
+    .toggle-group { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+    .toggle-btn {
+      padding: 0.3rem 0.7rem;
+      border: 1px solid #ced4da;
+      border-radius: 4px;
+      background: white;
+      font-size: 0.82rem;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .toggle-btn.active { background: #2e9954; color: white; border-color: #2e9954; }
+
+    /* ------------------------------------------------------------------ */
+    /* Chart cards                                                          */
+    /* ------------------------------------------------------------------ */
+    .card {
+      background: white;
+      border: 1px solid #dee2e6;
+      border-radius: 8px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+      margin-bottom: 1.5rem;
+      overflow: hidden;
+    }
+    .card-header {
+      padding: 0.75rem 1.25rem;
+      border-bottom: 1px solid #f0f0f0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .card-header h2 { font-size: 1rem; font-weight: 600; }
+    .card-header .badge {
+      font-size: 0.75rem;
+      background: #e8f5e9;
+      color: #2e7d32;
+      padding: 0.15rem 0.5rem;
+      border-radius: 10px;
+      font-weight: 600;
+    }
+    .chart-container { padding: 0.5rem; }
+
+    /* ------------------------------------------------------------------ */
+    /* Loading / error states                                              */
+    /* ------------------------------------------------------------------ */
+    #loading-msg {
+      text-align: center;
+      padding: 3rem;
+      color: #777;
+      font-size: 1rem;
+    }
+    .spinner {
+      display: inline-block;
+      width: 24px; height: 24px;
+      border: 3px solid #dee2e6;
+      border-top-color: #2e9954;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin-right: 0.5rem;
+      vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ------------------------------------------------------------------ */
+    /* Footer                                                               */
+    /* ------------------------------------------------------------------ */
+    footer {
+      text-align: center;
+      padding: 1rem;
+      font-size: 0.8rem;
+      color: #888;
+      border-top: 1px solid #dee2e6;
+      margin-top: 1rem;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🍓 VeryBerryLab — Strawberry Phenotyping 4</h1>
+  <p>Stolon, daughter-plant, and flowering dynamics across 11 cultivars &bull; 2025 season</p>
+</header>
+
+<main>
+
+  <!-- Loading state shown until data is ready -->
+  <div id="loading-msg">
+    <span class="spinner"></span> Loading phenotyping data&hellip;
+  </div>
+
+  <!-- Controls (hidden until data loads) -->
+  <div class="controls" id="controls" style="display:none">
+    <div class="control-group">
+      <label for="trait-select">Trait</label>
+      <select id="trait-select"></select>
+    </div>
+    <div class="control-group">
+      <label>Trait level</label>
+      <div class="toggle-group" id="level-toggles">
+        <button class="toggle-btn active" data-level="1">Level 1 — Stolons</button>
+        <button class="toggle-btn" data-level="2">Level 2 — + Daughters</button>
+        <button class="toggle-btn" data-level="3">Level 3 — + Flowers</button>
+      </div>
+    </div>
+    <div class="control-group">
+      <label>SE bands</label>
+      <div class="toggle-group">
+        <button class="toggle-btn active" id="se-toggle" data-on="true">Show ±1 SE</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chart A -->
+  <div class="card" id="card-a" style="display:none">
+    <div class="card-header">
+      <h2 id="chart-a-title">Multi-cultivar Time Series</h2>
+      <span class="badge">Viz A</span>
+    </div>
+    <div class="chart-container">
+      <div id="chart-a" style="height:520px"></div>
+    </div>
+  </div>
+
+  <!-- Chart B -->
+  <div class="card" id="card-b" style="display:none">
+    <div class="card-header">
+      <h2>Small Multiples — Stolon Orders per Cultivar</h2>
+      <span class="badge">Viz B</span>
+    </div>
+    <div class="chart-container">
+      <div id="chart-b" style="height:680px"></div>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  VeryBerryLab &bull; Phenotyping Batch 4 &bull; Data: 2025-04-16 to 2025-06-25 &bull;
+  Built with <a href="https://plotly.com/javascript/" target="_blank">Plotly.js</a>
+</footer>
+
+<script>
+// ============================================================
+// Configuration
+// ============================================================
+const DATA_PATH = "../data/processed/pheno4_viz.json";
+
+// Colorblind-safe palette (Okabe-Ito + extras)
+const PALETTE = [
+  "#E69F00","#56B4E9","#009E73","#F0E442","#0072B2",
+  "#D55E00","#CC79A7","#000000","#AA4499","#44BB99","#BBCC33"
+];
+
+const TRAIT_LABELS = {
+  n_stolon_primary:       "Primary Stolons",
+  n_stolon_secondary:     "Secondary Stolons",
+  n_stolon_tertiary:      "Tertiary Stolons",
+  n_stolon_quaternary:    "Quaternary Stolons",
+  n_dp_alt_primary:       "Daughter Plants (Alt) on Primary",
+  n_dp_alt_secondary:     "Daughter Plants (Alt) on Secondary",
+  n_dp_alt_tertiary:      "Daughter Plants (Alt) on Tertiary",
+  n_dp_alt_quaternary:    "Daughter Plants (Alt) on Quaternary",
+  n_dp_mid_primary:       "Daughter Plants (Mid) on Primary",
+  n_dp_mid_secondary:     "Daughter Plants (Mid) on Secondary",
+  n_dp_total_alt:         "Total Daughter Plants (Alternate Nodes)",
+  n_dp_total_mid:         "Total Daughter Plants (Mid Nodes)",
+  n_flowers_total:        "Total Flowers",
+  n_flowers_mp:           "Flowers on Mother Plant",
+  n_flowers_dp:           "Flowers on Daughter Plants",
+  stolon_length_primary_cm: "Primary Stolon Length (cm)",
+  crown_diameter_mm:       "Crown Diameter (mm)",
+};
+
+const TRAIT_LEVELS = {
+  1: ["n_stolon_primary","n_stolon_secondary","n_stolon_tertiary","n_stolon_quaternary"],
+  2: ["n_stolon_primary","n_stolon_secondary","n_stolon_tertiary","n_stolon_quaternary",
+      "n_dp_alt_primary","n_dp_alt_secondary","n_dp_alt_tertiary","n_dp_alt_quaternary",
+      "n_dp_mid_primary","n_dp_mid_secondary","n_dp_total_alt","n_dp_total_mid"],
+  3: ["n_stolon_primary","n_stolon_secondary","n_stolon_tertiary","n_stolon_quaternary",
+      "n_dp_alt_primary","n_dp_alt_secondary","n_dp_alt_tertiary","n_dp_alt_quaternary",
+      "n_dp_mid_primary","n_dp_mid_secondary","n_dp_total_alt","n_dp_total_mid",
+      "n_flowers_total","n_flowers_mp","n_flowers_dp"],
+};
+
+const STOLON_STYLES = {
+  n_stolon_primary:    { dash: "solid",   color: "#0072B2" },
+  n_stolon_secondary:  { dash: "dash",    color: "#D55E00" },
+  n_stolon_tertiary:   { dash: "dot",     color: "#009E73" },
+  n_stolon_quaternary: { dash: "dashdot", color: "#CC79A7" },
+};
+
+// ============================================================
+// State
+// ============================================================
+let gData     = null;
+let gTrait    = "n_stolon_primary";
+let gLevel    = 1;
+let gShowSE   = true;
+
+// ============================================================
+// Data loading
+// ============================================================
+async function loadData() {
+  try {
+    const resp = await fetch(DATA_PATH);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status} — could not load ${DATA_PATH}`);
+    gData = await resp.json();
+    onDataLoaded();
+  } catch (err) {
+    document.getElementById("loading-msg").innerHTML =
+      `<b style="color:#c00">Error loading data:</b> ${err.message}<br>
+       <small>Make sure you have run <code>src/etl.py</code> and
+       <code>src/aggregate.py</code> first, and are serving this page from
+       the <code>veryberrylab/</code> directory (e.g. <code>python -m http.server</code>).</small>`;
+  }
+}
+
+function onDataLoaded() {
+  document.getElementById("loading-msg").style.display = "none";
+  document.getElementById("controls").style.display   = "flex";
+  document.getElementById("card-a").style.display     = "block";
+  document.getElementById("card-b").style.display     = "block";
+
+  buildTraitSelector();
+  attachControls();
+  renderAll();
+}
+
+// ============================================================
+// Build trait selector from current level
+// ============================================================
+function buildTraitSelector() {
+  const sel = document.getElementById("trait-select");
+  const available = TRAIT_LEVELS[gLevel].filter(t => {
+    const cultivarKeys = Object.keys(gData.cultivars);
+    if (!cultivarKeys.length) return false;
+    return gData.cultivars[cultivarKeys[0]].traits[t] !== undefined;
+  });
+
+  sel.innerHTML = available.map(t =>
+    `<option value="${t}" ${t === gTrait ? "selected" : ""}>${TRAIT_LABELS[t] || t}</option>`
+  ).join("");
+
+  // If current gTrait not in list, reset
+  if (!available.includes(gTrait)) {
+    gTrait = available[0] || "n_stolon_primary";
+  }
+}
+
+// ============================================================
+// UI event wiring
+// ============================================================
+function attachControls() {
+  document.getElementById("trait-select").addEventListener("change", e => {
+    gTrait = e.target.value;
+    renderChartA();
+    updateChartATitle();
+  });
+
+  document.querySelectorAll("[data-level]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      gLevel = parseInt(btn.dataset.level);
+      document.querySelectorAll("[data-level]").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      buildTraitSelector();
+      renderChartA();
+      updateChartATitle();
+    });
+  });
+
+  const seBtn = document.getElementById("se-toggle");
+  seBtn.addEventListener("click", () => {
+    gShowSE = !gShowSE;
+    seBtn.textContent = gShowSE ? "Show ±1 SE" : "Hide SE";
+    seBtn.classList.toggle("active", gShowSE);
+    renderChartA();
+  });
+}
+
+function updateChartATitle() {
+  document.getElementById("chart-a-title").textContent =
+    `Multi-cultivar Time Series — ${TRAIT_LABELS[gTrait] || gTrait}`;
+}
+
+// ============================================================
+// Chart A — Multi-cultivar time series
+// ============================================================
+function renderChartA() {
+  const cultivarNames = Object.keys(gData.cultivars).sort();
+  const colorMap = Object.fromEntries(cultivarNames.map((c, i) => [c, PALETTE[i % PALETTE.length]]));
+
+  const traces = [];
+
+  cultivarNames.forEach(cultivar => {
+    const info = gData.cultivars[cultivar];
+    const traitData = info.traits[gTrait];
+    if (!traitData) return;
+
+    const dates   = info.dates.map(d => new Date(d));
+    const means   = traitData.mean;
+    const ses     = traitData.se;
+    const ns      = traitData.n;
+    const color   = colorMap[cultivar];
+
+    // SE shading band
+    if (gShowSE) {
+      const upper = means.map((m, i) => (m != null && ses[i] != null) ? m + ses[i] : null);
+      const lower = means.map((m, i) => (m != null && ses[i] != null) ? m - ses[i] : null);
+      const xBand = [...dates, ...[...dates].reverse()];
+      const yBand = [...upper, ...[...lower].reverse()];
+
+      traces.push({
+        x: xBand, y: yBand,
+        fill: "toself",
+        fillcolor: color,
+        opacity: 0.12,
+        line: { width: 0 },
+        showlegend: false,
+        hoverinfo: "skip",
+        type: "scatter",
+      });
+    }
+
+    // Mean line
+    traces.push({
+      x: dates, y: means,
+      mode: "lines+markers",
+      name: cultivar,
+      line:   { color, width: 2 },
+      marker: { size: 7, color },
+      type: "scatter",
+      customdata: ses.map((se, i) => [se, ns[i]]),
+      hovertemplate:
+        "<b>%{x|%b %d, %Y}</b><br>" +
+        `<b>${cultivar}</b><br>` +
+        "Mean: %{y:.2f}<br>" +
+        "SE: ±%{customdata[0]:.2f}<br>" +
+        "n = %{customdata[1]}<extra></extra>",
+    });
+  });
+
+  const layout = {
+    xaxis: {
+      title: "Measurement Date",
+      tickformat: "%b %d",
+      tickmode: "array",
+      tickvals: gData.cultivars[cultivarNames[0]]?.dates.map(d => new Date(d)) || [],
+      gridcolor: "#f0f0f0",
+    },
+    yaxis: {
+      title: `Mean ${TRAIT_LABELS[gTrait] || gTrait} per Plant`,
+      gridcolor: "#f0f0f0",
+      rangemode: "tozero",
+    },
+    legend: {
+      title: { text: "Cultivar" },
+      bgcolor: "rgba(255,255,255,0.85)",
+      bordercolor: "#ccc",
+      borderwidth: 1,
+    },
+    plot_bgcolor: "white",
+    paper_bgcolor: "white",
+    hovermode: "closest",
+    margin: { t: 30, b: 60, l: 70, r: 20 },
+  };
+
+  Plotly.react("chart-a", traces, layout, { responsive: true });
+}
+
+// ============================================================
+// Chart B — Small multiples (Level 1 stolon traits only)
+// ============================================================
+function renderChartB() {
+  const cultivarNames = Object.keys(gData.cultivars).sort();
+  const ncols = 4;
+  const nrows = Math.ceil(cultivarNames.length / ncols);
+
+  const stolonTraits = Object.keys(STOLON_STYLES).filter(t =>
+    gData.cultivars[cultivarNames[0]]?.traits[t]
+  );
+
+  // Build subplot grid specs
+  const specs = Array.from({ length: nrows }, () =>
+    Array.from({ length: ncols }, () => ({ type: "scatter" }))
+  );
+
+  const subplotTitles = [
+    ...cultivarNames,
+    ...Array(nrows * ncols - cultivarNames.length).fill(""),
+  ];
+
+  // Compute axis keys for each panel
+  function axisKey(i) {
+    return i === 0 ? "" : String(i + 1);
+  }
+
+  // Manually build traces with axis references
+  const traces = [];
+  const legendSeen = new Set();
+
+  cultivarNames.forEach((cultivar, idx) => {
+    const info = gData.cultivars[cultivar];
+    const dates = info.dates.map(d => new Date(d));
+    const row = Math.floor(idx / ncols) + 1;
+    const col = (idx % ncols) + 1;
+    // plotly subplot axis index: row-major
+    const panelIdx = (row - 1) * ncols + (col - 1);
+    const xref = "x" + axisKey(panelIdx);
+    const yref = "y" + axisKey(panelIdx);
+
+    stolonTraits.forEach(trait => {
+      const traitData = info.traits[trait];
+      if (!traitData) return;
+      const { dash, color } = STOLON_STYLES[trait];
+      const label = TRAIT_LABELS[trait] || trait;
+
+      traces.push({
+        x: dates,
+        y: traitData.mean,
+        mode: "lines+markers",
+        name: label,
+        legendgroup: trait,
+        showlegend: !legendSeen.has(trait),
+        line:   { dash, color, width: 1.5 },
+        marker: { size: 4, color },
+        xaxis: xref,
+        yaxis: yref,
+        hovertemplate: `<b>%{x|%b %d}</b><br>${label}: %{y:.1f}<extra>${cultivar}</extra>`,
+        type: "scatter",
+      });
+      legendSeen.add(trait);
+    });
+  });
+
+  // Build layout with all subplot axes + annotations for panel titles
+  const layout = {
+    plot_bgcolor: "white",
+    paper_bgcolor: "white",
+    showlegend: true,
+    legend: {
+      title: { text: "Stolon Order" },
+      orientation: "h",
+      yanchor: "top",
+      y: -0.08,
+      xanchor: "center",
+      x: 0.5,
+    },
+    margin: { t: 50, b: 80, l: 50, r: 20 },
+    height: 200 * nrows + 120,
+    annotations: subplotTitles.map((title, i) => {
+      const r = Math.floor(i / ncols);
+      const c = i % ncols;
+      return {
+        text: `<b>${title}</b>`,
+        showarrow: false,
+        xref: "paper",
+        yref: "paper",
+        x: (c + 0.5) / ncols,
+        y: 1 - r / nrows + 0.01,
+        xanchor: "center",
+        yanchor: "bottom",
+        font: { size: 11 },
+      };
+    }),
+  };
+
+  // Add subplot axis definitions
+  cultivarNames.forEach((_, idx) => {
+    const row = Math.floor(idx / ncols) + 1;
+    const col = (idx % ncols) + 1;
+    const k   = axisKey(idx);
+    const domain_x = [(col - 1) / ncols + 0.01, col / ncols - 0.01];
+    const domain_y = [1 - row / nrows + 0.03, 1 - (row - 1) / nrows - 0.06];
+
+    layout["xaxis" + k] = {
+      domain: domain_x,
+      anchor: "y" + k,
+      tickformat: "%b %d",
+      showticklabels: row === nrows,
+      gridcolor: "#f5f5f5",
+      tickfont: { size: 9 },
+    };
+    layout["yaxis" + k] = {
+      domain: domain_y,
+      anchor: "x" + k,
+      rangemode: "tozero",
+      gridcolor: "#f5f5f5",
+      tickfont: { size: 9 },
+    };
+  });
+
+  Plotly.react("chart-b", traces, layout, { responsive: true });
+}
+
+function renderAll() {
+  renderChartA();
+  renderChartB();
+  updateChartATitle();
+}
+
+// ============================================================
+// Boot
+// ============================================================
+loadData();
+</script>
+
+</body>
+</html>

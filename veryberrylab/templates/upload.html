@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>VeryBerryLab — Upload Phenotyping Worksheet</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      background: #0b1120;
+      color: #cbd5e1;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    body {
+      min-height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+    }
+
+    /* ── Header brand ─────────────────────────────── */
+    .brand {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    .brand-icon { font-size: 44px; margin-bottom: 8px; }
+    .brand h1 {
+      font-size: 22px; font-weight: 800;
+      color: #f1f5f9; letter-spacing: -0.3px;
+    }
+    .brand p {
+      font-size: 12px; color: #475569;
+      margin-top: 5px; letter-spacing: 0.3px;
+    }
+
+    /* ── Upload card ──────────────────────────────── */
+    .card {
+      width: 100%; max-width: 520px;
+      background: #131e30;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px;
+      padding: 32px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+    }
+
+    /* ── Drop zone ────────────────────────────────── */
+    .drop-zone {
+      border: 2px dashed rgba(59,130,246,0.4);
+      border-radius: 12px;
+      padding: 36px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .18s, background .18s;
+      background: rgba(255,255,255,0.02);
+      position: relative;
+      margin-bottom: 20px;
+    }
+    .drop-zone:hover,
+    .drop-zone.dragover {
+      border-color: #3b82f6;
+      background: rgba(59,130,246,0.06);
+    }
+    .drop-zone input[type="file"] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+    }
+    .dz-icon { font-size: 36px; margin-bottom: 12px; }
+    .dz-title {
+      font-size: 15px; font-weight: 600; color: #e2e8f0;
+      margin-bottom: 6px;
+    }
+    .dz-sub {
+      font-size: 12px; color: #475569;
+    }
+    .dz-filename {
+      display: none;
+      margin-top: 14px;
+      font-size: 12px; color: #93c5fd;
+      background: rgba(59,130,246,0.12);
+      border-radius: 6px;
+      padding: 6px 12px;
+      word-break: break-all;
+    }
+    .dz-filename.show { display: block; }
+
+    /* ── Submit button ────────────────────────────── */
+    .btn-analyze {
+      display: block; width: 100%;
+      padding: 13px;
+      background: #1d4ed8;
+      color: #eff6ff;
+      font-size: 14px; font-weight: 700;
+      border: none; border-radius: 10px;
+      cursor: pointer;
+      transition: background .16s, transform .1s;
+      letter-spacing: 0.2px;
+    }
+    .btn-analyze:hover   { background: #2563eb; }
+    .btn-analyze:active  { transform: scale(0.98); }
+    .btn-analyze:disabled {
+      background: #1e3a5f; color: #334155; cursor: not-allowed;
+    }
+
+    /* ── Error banner ─────────────────────────────── */
+    .error-banner {
+      background: rgba(239,68,68,0.12);
+      border: 1px solid rgba(239,68,68,0.3);
+      border-radius: 8px;
+      padding: 12px 14px;
+      font-size: 12.5px;
+      color: #fca5a5;
+      margin-bottom: 20px;
+      line-height: 1.5;
+    }
+    .error-banner::before {
+      content: "⚠ ";
+      font-weight: 700;
+    }
+
+    /* ── Format guide ─────────────────────────────── */
+    .format-guide {
+      margin-top: 24px;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      padding-top: 18px;
+    }
+    .guide-toggle {
+      background: none; border: none; cursor: pointer;
+      font-size: 11px; font-weight: 700;
+      color: #475569; letter-spacing: 0.8px;
+      text-transform: uppercase;
+      display: flex; align-items: center; gap: 6px;
+      padding: 0; width: 100%;
+    }
+    .guide-toggle:hover { color: #64748b; }
+    .guide-toggle .arrow { transition: transform .18s; }
+    .guide-toggle.open .arrow { transform: rotate(90deg); }
+
+    .guide-body {
+      display: none; margin-top: 12px;
+    }
+    .guide-body.open { display: block; }
+
+    .guide-body p {
+      font-size: 11.5px; color: #475569;
+      margin-bottom: 10px; line-height: 1.6;
+    }
+    .guide-table {
+      width: 100%; border-collapse: collapse;
+      font-size: 11px;
+    }
+    .guide-table th {
+      font-size: 9px; font-weight: 800;
+      text-transform: uppercase; letter-spacing: 0.8px;
+      color: #334155; text-align: left;
+      padding: 3px 8px 6px; border-bottom: 1px solid rgba(255,255,255,0.07);
+    }
+    .guide-table td {
+      padding: 5px 8px;
+      color: #64748b;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 10.5px;
+    }
+    .guide-table td:last-child { color: #475569; font-family: inherit; }
+
+    /* ── Loading overlay ──────────────────────────── */
+    .loading-overlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(11,17,32,0.92);
+      backdrop-filter: blur(4px);
+      z-index: 1000;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+    }
+    .loading-overlay.show { display: flex; }
+
+    .spinner {
+      width: 48px; height: 48px;
+      border: 3px solid rgba(59,130,246,0.2);
+      border-top-color: #3b82f6;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading-title {
+      font-size: 16px; font-weight: 700; color: #e2e8f0;
+    }
+    .loading-steps {
+      font-size: 12px; color: #475569;
+      text-align: center; line-height: 2;
+    }
+    .loading-step {
+      transition: color .3s, opacity .3s;
+      opacity: 0.4;
+    }
+    .loading-step.active {
+      color: #93c5fd; opacity: 1; font-weight: 600;
+    }
+    .loading-step.done {
+      color: #4ade80; opacity: 0.85;
+    }
+    .loading-step.done::before { content: "✓ "; }
+    .loading-step.active::before { content: "→ "; }
+
+    /* ── Footer ───────────────────────────────────── */
+    .footer {
+      margin-top: 28px;
+      font-size: 10.5px; color: #1e3a5f;
+      text-align: center; line-height: 1.7;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Loading overlay -->
+<div class="loading-overlay" id="loading-overlay">
+  <div class="spinner"></div>
+  <div class="loading-title">Analysing worksheet…</div>
+  <div class="loading-steps" id="loading-steps">
+    <div class="loading-step" id="step-read">Reading Excel workbook</div>
+    <div class="loading-step" id="step-etl">Parsing cultivar sheets</div>
+    <div class="loading-step" id="step-kw">Running Kruskal-Wallis tests</div>
+    <div class="loading-step" id="step-cld">Computing Conover-Iman CLD</div>
+    <div class="loading-step" id="step-html">Building interactive dashboard</div>
+  </div>
+</div>
+
+<!-- Brand -->
+<div class="brand">
+  <div class="brand-icon">🍓</div>
+  <h1>VeryBerryLab</h1>
+  <p>Strawberry Phenotyping · Statistical Dashboard</p>
+</div>
+
+<!-- Card -->
+<div class="card">
+
+  {% if error %}
+  <div class="error-banner">{{ error }}</div>
+  {% endif %}
+
+  <form id="upload-form" method="POST" action="/analyze" enctype="multipart/form-data">
+
+    <div class="drop-zone" id="drop-zone">
+      <input type="file" name="worksheet" id="file-input" accept=".xlsx"/>
+      <div class="dz-icon">📊</div>
+      <div class="dz-title">Drop your worksheet here</div>
+      <div class="dz-sub">or click to browse — .xlsx files only</div>
+      <div class="dz-filename" id="dz-filename"></div>
+    </div>
+
+    <button type="submit" class="btn-analyze" id="btn-analyze">
+      Run Analysis
+    </button>
+
+  </form>
+
+  <!-- Format guide (collapsible) -->
+  <div class="format-guide">
+    <button class="guide-toggle" id="guide-toggle" type="button">
+      <span class="arrow">▶</span>
+      Expected workbook format
+    </button>
+    <div class="guide-body" id="guide-body">
+      <p>
+        The workbook must follow the <strong>Phenotyping 4 Worksheet 2</strong> layout:
+        one sheet per cultivar, with dates across columns and traits as rows.
+      </p>
+      <table class="guide-table">
+        <thead>
+          <tr><th>Sheet tab</th><th>Cultivar</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Alb</td><td>Albion</td></tr>
+          <tr><td>Bri</td><td>Brilliance</td></tr>
+          <tr><td>Cab</td><td>Cabrio</td></tr>
+          <tr><td>Cam</td><td>Camarosa</td></tr>
+          <tr><td>Cha</td><td>Chandler</td></tr>
+          <tr><td>Fin</td><td>Finn</td></tr>
+          <tr><td>Mox</td><td>Moxie</td></tr>
+          <tr><td>Por</td><td>Portola</td></tr>
+          <tr><td>Rad</td><td>Radiance</td></tr>
+          <tr><td>RJune</td><td>Ruby June</td></tr>
+          <tr><td>Sen</td><td>Sensation</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<div class="footer">
+  Kruskal-Wallis &middot; Conover-Iman post-hoc &middot; Bonferroni correction &middot; CLD (Piepho 2004)
+  <br>11 cultivars &middot; up to 12 measurement dates &middot; 19 traits
+</div>
+
+<script>
+(function() {
+  var dropZone  = document.getElementById('drop-zone');
+  var fileInput = document.getElementById('file-input');
+  var fnLabel   = document.getElementById('dz-filename');
+  var form      = document.getElementById('upload-form');
+  var overlay   = document.getElementById('loading-overlay');
+  var steps     = ['step-read','step-etl','step-kw','step-cld','step-html'];
+
+  /* ── File name display ──────────────────────────────── */
+  function showFile(name) {
+    fnLabel.textContent = name;
+    fnLabel.classList.add('show');
+  }
+
+  fileInput.addEventListener('change', function() {
+    if (this.files.length) showFile(this.files[0].name);
+  });
+
+  /* ── Drag & drop ────────────────────────────────────── */
+  dropZone.addEventListener('dragover', function(e) {
+    e.preventDefault();
+    dropZone.classList.add('dragover');
+  });
+  dropZone.addEventListener('dragleave', function() {
+    dropZone.classList.remove('dragover');
+  });
+  dropZone.addEventListener('drop', function(e) {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    var files = e.dataTransfer.files;
+    if (files.length) {
+      fileInput.files = files;
+      showFile(files[0].name);
+    }
+  });
+
+  /* ── Format guide toggle ────────────────────────────── */
+  var guideToggle = document.getElementById('guide-toggle');
+  var guideBody   = document.getElementById('guide-body');
+  guideToggle.addEventListener('click', function() {
+    var open = guideBody.classList.toggle('open');
+    guideToggle.classList.toggle('open', open);
+  });
+
+  /* ── Loading animation ──────────────────────────────── */
+  function startLoading() {
+    overlay.classList.add('show');
+    var i = 0;
+    function tick() {
+      if (i < steps.length) {
+        if (i > 0) document.getElementById(steps[i-1]).className = 'loading-step done';
+        document.getElementById(steps[i]).className = 'loading-step active';
+        i++;
+        // Each step except the last advances after ~1.4s
+        if (i < steps.length) setTimeout(tick, 1400);
+      }
+    }
+    tick();
+  }
+
+  /* ── Form submit ────────────────────────────────────── */
+  form.addEventListener('submit', function(e) {
+    if (!fileInput.files.length) {
+      e.preventDefault();
+      alert('Please select an .xlsx file first.');
+      return;
+    }
+    startLoading();
+    // Let the form submit naturally — browser navigates to response
+  });
+
+})();
+</script>
+</body>
+</html>
