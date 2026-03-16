@@ -1,8 +1,7 @@
 """
-app.py — VeryBerryLab Web Server
-=================================
-Upload a Pheno 4 Worksheet 2 .xlsx file and get the full interactive
-research dashboard in your browser.
+app.py — VeryBerryLab Dashboard
+================================
+Multi-page Dash application for strawberry phenotyping analysis.
 
 Run from the veryberrylab/ directory:
     python3 app.py
@@ -13,87 +12,109 @@ Then open:  http://localhost:5001
 import sys
 from pathlib import Path
 
-from flask import Flask, Response, render_template, request
-
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from src.etl import run_etl_from_bytes              # noqa: E402
-from viz.pheno4_stats_viz import generate_html      # noqa: E402
+import dash
+from dash import Dash, Input, Output, dcc, html
 
-app = Flask(__name__)
-app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB cap
+import src.data_cache as cache
+
+# ---------------------------------------------------------------------------
+# Load data before anything else
+# ---------------------------------------------------------------------------
+cache.initialize()
+
+# ---------------------------------------------------------------------------
+# App
+# ---------------------------------------------------------------------------
+app = Dash(
+    __name__,
+    use_pages=True,
+    suppress_callback_exceptions=True,
+    title="VeryBerryLab",
+)
+server = app.server  # expose Flask server for WSGI if needed
+
+NAV_ITEMS = [
+    {"label": "Data Health",     "href": "/"},
+    {"label": "Trait Explorer",  "href": "/trait-explorer"},
+    {"label": "Date Compare",    "href": "/date-compare"},
+    {"label": "Season Summary",  "href": "/season-summary"},
+    {"label": "Plant Animation", "href": "/plant-animation"},
+    {"label": "Export & Methods","href": "/export"},
+]
+
+app.layout = html.Div(
+    className="app-wrapper",
+    children=[
+        dcc.Location(id="url", refresh=False),
+
+        # ── Left sidebar ──────────────────────────────────────────────────
+        html.Aside(
+            className="sidebar",
+            children=[
+                html.Div(className="brand", children=[
+                    html.Span("VeryBerry", className="brand-berry"),
+                    html.Span("Lab",       className="brand-lab"),
+                ]),
+                html.Div(className="batch-badge-row", children=[
+                    html.Span("Batch A", className="badge badge-a"),
+                    html.Span("Batch B", className="badge badge-b"),
+                ]),
+                html.Nav(
+                    className="nav",
+                    children=[
+                        dcc.Link(
+                            item["label"],
+                            href=item["href"],
+                            className="nav-link",
+                            id={"type": "nav-link", "index": i},
+                        )
+                        for i, item in enumerate(NAV_ITEMS)
+                    ],
+                ),
+                html.Div(className="sidebar-footer", children=[
+                    html.Span("Pheno 4 · 2025", className="sidebar-meta"),
+                    html.Span("11 cvs · 12 dates", className="sidebar-meta"),
+                ]),
+            ],
+        ),
+
+        # ── Main content ──────────────────────────────────────────────────
+        html.Main(
+            className="main-content",
+            children=[dash.page_container],
+        ),
+    ],
+)
 
 
 # ---------------------------------------------------------------------------
-# Routes
+# Active nav highlight
 # ---------------------------------------------------------------------------
-
-@app.route("/")
-def index():
-    return render_template("upload.html", error=None)
-
-
-@app.errorhandler(413)
-def too_large(_e):
-    return render_template("upload.html", error="File exceeds 50 MB limit."), 413
-
-
-@app.route("/analyze", methods=["POST"])
-def analyze():
-    if "worksheet" not in request.files:
-        return render_template("upload.html", error="No file received."), 400
-
-    f = request.files["worksheet"]
-
-    if not f.filename:
-        return render_template("upload.html", error="No file selected."), 400
-
-    if not f.filename.lower().endswith(".xlsx"):
-        return render_template(
-            "upload.html",
-            error=f"'{f.filename}' is not an .xlsx file. Please upload an Excel workbook.",
-        ), 400
-
-    xlsx_bytes = f.read()
-    if len(xlsx_bytes) == 0:
-        return render_template("upload.html", error="Uploaded file is empty."), 400
-
-    try:
-        df = run_etl_from_bytes(xlsx_bytes)
-    except Exception as exc:
-        return render_template(
-            "upload.html",
-            error=f"Could not read workbook: {exc}",
-        ), 422
-
-    if df.empty:
-        return render_template(
-            "upload.html",
-            error=(
-                "No data found. Make sure the workbook follows the Phenotyping 4 "
-                "Worksheet 2 format (one sheet per cultivar, named Alb, Bri, Cab, …)."
-            ),
-        ), 422
-
-    try:
-        html_str = generate_html(df)
-    except Exception as exc:
-        return render_template(
-            "upload.html",
-            error=f"Analysis failed: {exc}",
-        ), 500
-
-    return Response(html_str, mimetype="text/html")
+@app.callback(
+    Output({"type": "nav-link", "index": dash.ALL}, "className"),
+    Input("url", "pathname"),
+)
+def highlight_nav(pathname):
+    classes = []
+    for item in NAV_ITEMS:
+        if pathname == item["href"]:
+            classes.append("nav-link active")
+        elif item["href"] != "/" and pathname and pathname.startswith(item["href"]):
+            classes.append("nav-link active")
+        else:
+            classes.append("nav-link")
+    return classes
 
 
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
-
 if __name__ == "__main__":
     print()
     print("  ╔══════════════════════════════════════════════════╗")
-    print("  ║  VeryBerryLab — Phenotyping Dashboard Server     ║")
+    print("  ║  VeryBerryLab — Phenotyping Dashboard            ║")
     print("  ║  Open  →  http://localhost:5001                  ║")
     print("  ╚══════════════════════════════════════════════════╝")
     print()
