@@ -1,0 +1,45 @@
+# Data files — raw Excel workbooks (keep locally, do not commit)
+*.xlsx
+*.xls
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.venv/
+venv/
+env/
+.env
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+*.DS_Store
+._*
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Generated / processed outputs (reproducible from raw data + code)
+veryberrylab/data/processed/
+
+# Keep raw data in place (tracked intentionally — offline copy of source workbook)
+# To exclude in future add: veryberrylab/data/raw/*.xlsx
+
+# Logs
+*.log

@@ -28,7 +28,8 @@ import dash
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
-from dash import Input, Output, callback, dcc, html
+from dash import Input, Output, State, callback, ctx, dcc, html
+from dash.exceptions import PreventUpdate
 
 import src.data_cache as cache
 from src.etl import BATCH_A, BATCH_B, TRAIT_COLS, TRAIT_LABELS
@@ -86,11 +87,6 @@ def _plant_fig(cultivar: str, date_str: str, df: pd.DataFrame, show_mean: bool) 
     stolon_len_u = min(2.5, stolon_len / 20.0)     # cm → plot units
 
     fig = go.Figure()
-
-    # ── Ground plane ──────────────────────────────────────────────────────
-    fig.add_shape(type="rect",
-        x0=XRANGE[0], x1=XRANGE[1], y0=-0.3, y1=-0.5,
-        fillcolor="#c8a96e", line_color="#a08050", line_width=1)
 
     # ── Primary stolons ───────────────────────────────────────────────────
     angle_spread = math.pi * 0.75  # stolons spread across 135° on each side
@@ -292,7 +288,12 @@ layout = html.Div([
                 ]),
             ]),
             html.Div(style={"marginTop": "16px"}, children=[
-                html.Label("Date:", className="filter-label"),
+                html.Div(style={"display": "flex", "alignItems": "center", "gap": "10px", "marginBottom": "8px"}, children=[
+                    html.Label("Date:", className="filter-label", style={"margin": "0"}),
+                    html.Button("▶ Play", id="pa-play-btn", n_clicks=0,
+                                className="btn btn-primary",
+                                style={"padding": "5px 14px", "fontSize": "12px"}),
+                ]),
                 html.Div(id="pa-slider-container"),
             ]),
         ]),
@@ -315,6 +316,7 @@ layout = html.Div([
             ]),
         ]),
     ]),
+    dcc.Interval(id="pa-interval", interval=1500, disabled=True, n_intervals=0),
 ])
 
 
@@ -343,10 +345,35 @@ def build_slider(cultivar, show_mean_flag):
     return dcc.Slider(
         id="pa-date-slider",
         min=0, max=len(dates) - 1, step=1,
-        value=len(dates) - 1,
+        value=0,
         marks=marks,
         included=False,
     )
+
+
+@callback(
+    Output("pa-interval", "disabled"),
+    Output("pa-play-btn", "children"),
+    Input("pa-play-btn", "n_clicks"),
+    State("pa-interval", "disabled"),
+    prevent_initial_call=True,
+)
+def toggle_play(_, is_disabled):
+    playing = is_disabled  # was disabled → now playing
+    return not playing, ("⏸ Pause" if playing else "▶ Play")
+
+
+@callback(
+    Output("pa-date-slider", "value", allow_duplicate=True),
+    Input("pa-interval", "n_intervals"),
+    State("pa-date-slider", "value"),
+    State("pa-date-slider", "max"),
+    prevent_initial_call=True,
+)
+def advance_slide(_, current, max_val):
+    cur = current or 0
+    nxt = cur + 1
+    return 0 if nxt > (max_val or 0) else nxt
 
 
 @callback(

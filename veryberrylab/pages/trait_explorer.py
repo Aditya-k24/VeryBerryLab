@@ -33,6 +33,13 @@ ALL_CULTIVARS = sorted(BATCH_A | BATCH_B)
 CV_COLOR = {cv: PALETTE[i] for i, cv in enumerate(ALL_CULTIVARS)}
 
 
+def _hex_rgba(hex_color: str, alpha: float) -> str:
+    """Convert a #RRGGBB hex string to rgba(r,g,b,alpha)."""
+    h = hex_color.lstrip("#")
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    return f"rgba({r},{g},{b},{alpha})"
+
+
 # ---------------------------------------------------------------------------
 # Figure builders
 # ---------------------------------------------------------------------------
@@ -83,8 +90,7 @@ def _time_series_fig(df, trait, selected_cvs, show_raw):
                 x=x_line + x_line[::-1],
                 y=y_up + y_dn[::-1],
                 fill="toself",
-                fillcolor=color.replace(")", ", 0.12)").replace("rgb", "rgba")
-                    if color.startswith("rgb") else color + "1f",
+                fillcolor=_hex_rgba(color, 0.15),
                 line_color="rgba(0,0,0,0)",
                 showlegend=False,
                 hoverinfo="skip",
