@@ -324,371 +324,506 @@ def _legacy_collect_steps(plant: Plant,
     return steps
 
 
-# ── Top-down layout ───────────────────────────────────────────────────────────
 
-def _compute_layout(plant: Plant, mother_id: int,
-                    canvas_w: int, canvas_h: int,
-                    code_first_date: dict, n_dates: int
-                    ) -> tuple[list[dict], int, int]:
+# ── D3 hierarchy builder ──────────────────────────────────────────────────────
+
+def _to_d3_hierarchy(plant: Plant, mother_id: int,
+                     code_first_date: dict, n_dates: int) -> dict:
     """
-    Top-down tree layout for one mother plant.
-    Returns (elements, actual_w, actual_h).
+    Convert the plant structure for one mother into a D3-compatible nested
+    hierarchy JSON.  Each dict node has:
+        id, type, order, first_date, dp_first_date, has_dp, code, depth_cm
+    Children list is populated so d3.hierarchy() can traverse it.
     """
-    MARGIN   = 55
-    CROWN_Y  = 42
+    sys.setrecursionlimit(max(10000, sys.getrecursionlimit()))
 
-    sys.setrecursionlimit(max(8000, sys.getrecursionlimit()))
+    # Memoised subtree first-date (earliest date any descendant daughter appears)
+    _sfm: dict = {}
 
-    pkeys = sorted(k for k in plant.stolons if k[0] == mother_id and k[1] == 1)
-    if not pkeys:
-        return [], canvas_w, canvas_h
-
-    # ── Step 1 – count leaf slots ─────────────────────────────────────────
-    leaf_count: dict[tuple, int] = {}
-
-    def count(sk: tuple) -> int:
-        if sk in leaf_count:
-            return leaf_count[sk]
+    def _sfd(sk: tuple) -> int:
+        if sk in _sfm:
+            return _sfm[sk]
         st = plant.stolons.get(sk)
         if st is None:
-            leaf_count[sk] = 1
-            return 1
-        c = 0
-        for n in sorted(st.nodes):
-            nd = st.nodes[n]
-            if nd.child_stolons:
-                for ck in nd.child_stolons:
-                    c += count(ck)
-            else:
-                c += 1          # terminal node = 1 leaf slot
-        leaf_count[sk] = max(c, 1)
-        return leaf_count[sk]
-
-    for pk in pkeys:
-        count(pk)
-
-    total_leaves = sum(leaf_count.get(pk, 1) for pk in pkeys)
-    actual_w = max(canvas_w,
-                   min(CANVAS_W_MAX, int(2 * MARGIN + total_leaves * LEAF_W_MIN)))
-    leaf_w   = (actual_w - 2 * MARGIN) / max(total_leaves, 1)
-
-    # ── Step 2 – max depth for Y scaling ─────────────────────────────────
-    depth_samples: list[float] = []
-
-    def get_depth(sk: tuple, d: float = 0.0) -> None:
-        """Accumulate internode lengths within each stolon correctly."""
-        st = plant.stolons.get(sk)
-        if st is None:
-            depth_samples.append(d)
-            return
-        cum = d
-        for n in sorted(st.nodes):
-            cum += st.ilengths.get(n, DEFAULT_INTERNODE_CM)  # accumulate!
-            nd = st.nodes[n]
-            if nd.child_stolons:
-                for ck in nd.child_stolons:
-                    get_depth(ck, cum)
-            else:
-                depth_samples.append(cum)
-
-    for pk in pkeys:
-        get_depth(pk)
-
-    max_depth = max(depth_samples) if depth_samples else 1.0
-    y_scale   = (canvas_h - CROWN_Y - 40) / max_depth
-
-    # ── Step 3a – assign X positions (DFS, leaf-counter) ─────────────────
-    node_x: dict[tuple, float] = {}
-    leaf_idx = [0]
-
-    def assign_x(sk: tuple) -> None:
-        st = plant.stolons.get(sk)
-        if st is None:
-            return
-        for n in sorted(st.nodes):
-            nd = st.nodes[n]
-            if nd.child_stolons:
-                start = leaf_idx[0]
-                for ck in nd.child_stolons:
-                    assign_x(ck)
-                end = leaf_idx[0]
-                node_x[(sk, n)] = MARGIN + (start + end) / 2 * leaf_w
-            else:
-                node_x[(sk, n)] = MARGIN + (leaf_idx[0] + 0.5) * leaf_w
-                leaf_idx[0] += 1
-
-    for pk in pkeys:
-        assign_x(pk)
-
-    # ── Step 3b – assign Y positions (BFS from crown) ────────────────────
-    node_y: dict[tuple, float] = {}
-    stolon_origin_y: dict[tuple, float] = {pk: CROWN_Y for pk in pkeys}
-
-    queue: deque = deque(pkeys)
-    visited: set = set()
-    while queue:
-        sk = queue.popleft()
-        if sk in visited:
-            continue
-        visited.add(sk)
-        st = plant.stolons.get(sk)
-        if st is None:
-            continue
-        cum_y = stolon_origin_y.get(sk, CROWN_Y)
-        for n in sorted(st.nodes):
-            cum_y += st.ilengths.get(n, DEFAULT_INTERNODE_CM) * y_scale
-            node_y[(sk, n)] = cum_y
-            nd = st.nodes[n]
-            for ck in nd.child_stolons:
-                stolon_origin_y[ck] = cum_y
-                queue.append(ck)
-
-    # ── Step 4 – first-date helpers ───────────────────────────────────────
-    def fd(code: str) -> int:
-        return code_first_date.get(code, n_dates)
-
-    subtree_fd_memo: dict[tuple, int] = {}
-
-    def subtree_fd(sk: tuple) -> int:
-        if sk in subtree_fd_memo:
-            return subtree_fd_memo[sk]
-        st = plant.stolons.get(sk)
-        if st is None:
-            subtree_fd_memo[sk] = n_dates
+            _sfm[sk] = n_dates
             return n_dates
         best = n_dates
-        for n in st.nodes:
-            nd = st.nodes[n]
+        for nd in st.nodes.values():
             if nd.daughter_code:
-                best = min(best, fd(nd.daughter_code))
+                best = min(best, code_first_date.get(nd.daughter_code, n_dates))
             for ck in nd.child_stolons:
-                best = min(best, subtree_fd(ck))
-        subtree_fd_memo[sk] = best
+                best = min(best, _sfd(ck))
+        _sfm[sk] = best
         return best
 
-    # Precompute subtree first_dates for all stolons
-    for sk in plant.stolons:
-        if sk[0] == mother_id:
-            subtree_fd(sk)
+    def _make(sk: tuple, node_num: int, depth: float, visited: set) -> Optional[dict]:
+        visit_key = (sk, node_num)
+        if visit_key in visited:
+            return None
+        visited.add(visit_key)
 
-    # ── Step 5 – build element list ───────────────────────────────────────
-    crown_x   = actual_w / 2.0
-    elements: list[dict] = [{
-        "type": "crown", "x": crown_x, "y": CROWN_Y,
-        "label": f"M{mother_id}", "first_date": 0,
-    }]
-
-    def build(sk: tuple, par_x: float, par_y: float) -> None:
         st = plant.stolons.get(sk)
-        if st is None:
-            return
+        if st is None or node_num not in st.nodes:
+            return None
 
-        # All structural elements in this stolon become visible when ANY
-        # descendant daughter first appears — ensures connected paths.
-        sk_fd = subtree_fd_memo.get(sk, n_dates)
+        nd     = st.nodes[node_num]
+        il     = st.ilengths.get(node_num, DEFAULT_INTERNODE_CM)
+        d      = round(depth + il, 3)
+        sk_fd  = _sfd(sk)
+        dp_fd  = code_first_date.get(nd.daughter_code, n_dates) if nd.daughter_code else n_dates
 
-        prev_x, prev_y = par_x, par_y
+        node: dict = {
+            "id":           f"{sk[0]}_{sk[1]}_{sk[2]}_{node_num}",
+            "type":         "node",
+            "order":        sk[1],
+            "first_date":   int(sk_fd),
+            "dp_first_date": int(dp_fd),
+            "has_dp":       bool(nd.daughter_code),
+            "code":         nd.daughter_code or "",
+            "depth_cm":     d,
+            "children":     [],
+        }
 
-        for n in sorted(st.nodes):
-            nd  = st.nodes[n]
-            nx  = node_x.get((sk, n), crown_x)
-            ny  = node_y.get((sk, n), prev_y + 10.0)
+        # Continuation: next node in the same stolon (insert first so it's
+        # the "straight-down" branch in the layout)
+        sorted_ns = sorted(st.nodes)
+        idx = sorted_ns.index(node_num)
+        if idx + 1 < len(sorted_ns):
+            child = _make(sk, sorted_ns[idx + 1], d, visited)
+            if child:
+                node["children"].insert(0, child)
 
-            # Segment and node mark — visible when stolon has any descendant
-            elements.append({
-                "type": "segment",
-                "x1": float(prev_x), "y1": float(prev_y),
-                "x2": float(nx),     "y2": float(ny),
-                "order": st.key[1],  "first_date": sk_fd,
-            })
-            elements.append({
-                "type": "node",
-                "x": float(nx), "y": float(ny),
-                "first_date": sk_fd,
-            })
+        # Child stolons branching off at this node
+        for ck in nd.child_stolons:
+            child_st = plant.stolons.get(ck)
+            if child_st and child_st.nodes:
+                fn = min(child_st.nodes)
+                child = _make(ck, fn, d, visited)
+                if child:
+                    node["children"].append(child)
 
-            # Daughter ○ — appears on its own specific first_date
-            if nd.daughter_code:
-                elements.append({
-                    "type": "daughter",
-                    "x": float(nx), "y": float(ny),
-                    "code": nd.daughter_code,
-                    "first_date": fd(nd.daughter_code),
-                })
+        return node
 
-            # Recurse into child stolons
-            for ck in nd.child_stolons:
-                build(ck, nx, ny)
+    pkeys = sorted(k for k in plant.stolons if k[0] == mother_id and k[1] == 1)
 
-            prev_x, prev_y = nx, ny
+    root: dict = {
+        "id":            f"M{mother_id}",
+        "type":          "crown",
+        "order":         0,
+        "first_date":    0,
+        "dp_first_date": n_dates,
+        "has_dp":        False,
+        "code":          "",
+        "depth_cm":      0.0,
+        "label":         f"M{mother_id}",
+        "children":      [],
+    }
 
+    vis: set = set()
     for pk in pkeys:
-        build(pk, crown_x, CROWN_Y)
+        child_st = plant.stolons.get(pk)
+        if child_st and child_st.nodes:
+            fn    = min(child_st.nodes)
+            child = _make(pk, fn, 0.0, vis)
+            if child:
+                root["children"].append(child)
 
-    return elements, actual_w, canvas_h
+    return root
 
 
-# ── JavaScript animation template ─────────────────────────────────────────────
+# ── D3 animation template ─────────────────────────────────────────────────────
 
 _JS_TEMPLATE = """\
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="utf-8">
+<script src="https://d3js.org/d3.v7.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:#0d1117;font-family:'Courier New',monospace;color:#e2e8f0;
-     height:100vh;display:flex;flex-direction:column;overflow:hidden}
-#ctrl{padding:7px 14px;background:#161b22;border-bottom:1px solid #30363d;
-      display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap}
-button{background:#21262d;color:#c9d1d9;border:1px solid #30363d;
-       padding:4px 10px;cursor:pointer;border-radius:4px;font-size:12px}
-button:hover{background:#30363d}
-#dl{color:#22c55e;font-size:13px;font-weight:bold;min-width:105px}
-#pw{flex:1;background:#21262d;border-radius:3px;height:8px;
-    cursor:pointer;border:1px solid #30363d;min-width:60px}
-#pb{background:#22c55e;height:100%;border-radius:3px;width:0%}
-#cnt{font-size:11px;color:#4a5568;white-space:nowrap}
-#cw{overflow:auto;flex-shrink:0;background:#0d1117;max-height:500px}
-canvas{display:block}
-#tw{flex:1;overflow-y:auto;border-top:1px solid #30363d}
-table{width:100%;border-collapse:collapse;font-size:11px}
-thead{position:sticky;top:0;background:#161b22;z-index:10}
-th{padding:5px 10px;color:#586069;border-bottom:1px solid #30363d;
-   text-align:left;font-weight:normal}
-td{padding:3px 10px;border-bottom:1px solid #111619;white-space:nowrap}
-.rn td{color:#fbbf24;background:#1c170066}
-.rs td{color:#94a3b8}
+html,body{height:100%;overflow:hidden;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Inter',sans-serif}
+body{background:#f2f4f7;display:flex;flex-direction:column}
+
+/* ── Controls bar (matches dashboard filter-card) ────────────── */
+#ctrl{
+  background:#fff;border-bottom:1px solid #e4e8ef;
+  padding:10px 20px;display:flex;align-items:center;gap:12px;
+  flex-shrink:0;flex-wrap:wrap;min-height:52px;
+}
+.btn{
+  background:#f2f4f7;border:1px solid #d8dce4;color:#14213d;
+  padding:5px 14px;border-radius:20px;cursor:pointer;font-size:12px;
+  font-weight:500;transition:all .15s;white-space:nowrap;
+}
+.btn:hover{background:#e4e8ef;border-color:#b8bcc8}
+.btn.primary{background:#14213d;color:#7ec8a4;border-color:#14213d}
+.btn.primary:hover{background:#1e2e52}
+#date-badge{
+  background:#14213d;color:#7ec8a4;
+  padding:4px 14px;border-radius:20px;font-size:12px;font-weight:600;
+  min-width:120px;text-align:center;letter-spacing:.3px;
+}
+#prog-track{
+  flex:1;height:6px;background:#e4e8ef;border-radius:3px;cursor:pointer;
+  position:relative;min-width:80px;
+}
+#prog-fill{
+  height:100%;border-radius:3px;width:0%;
+  background:linear-gradient(90deg,#2d7a45,#7ec8a4);transition:width .35s ease;
+}
+#prog-thumb{
+  position:absolute;width:13px;height:13px;background:#2d7a45;
+  border-radius:50%;top:50%;left:0%;
+  transform:translate(-50%,-50%);transition:left .35s ease;
+  box-shadow:0 0 0 3px rgba(45,122,69,.2);
+}
+#cnt{font-size:11px;color:#9aa4b2;white-space:nowrap}
+
+/* ── SVG area ───────────────────────────────────────────────── */
+#svg-wrap{flex:1;min-height:0;position:relative;background:#f8fafb;
+  border-bottom:1px solid #e4e8ef;overflow:hidden}
+svg{width:100%;height:100%;cursor:grab}
+svg:active{cursor:grabbing}
+.link{fill:none;stroke-linecap:round;stroke-linejoin:round}
+
+/* ── Overlay stats ──────────────────────────────────────────── */
+#stats{
+  position:absolute;top:10px;right:14px;display:flex;gap:12px;
+  pointer-events:none;
+}
+.stat{
+  background:rgba(255,255,255,.88);backdrop-filter:blur(6px);
+  border:1px solid #e4e8ef;border-radius:8px;
+  padding:6px 12px;text-align:center;
+}
+.stat-v{font-size:18px;font-weight:700;color:#14213d;line-height:1}
+.stat-l{font-size:9px;color:#9aa4b2;letter-spacing:.8px;margin-top:2px}
+
+/* ── Legend ─────────────────────────────────────────────────── */
+#legend{
+  position:absolute;bottom:10px;left:14px;
+  background:rgba(255,255,255,.88);backdrop-filter:blur(6px);
+  border:1px solid #e4e8ef;border-radius:8px;
+  padding:8px 12px;display:flex;flex-direction:column;gap:5px;
+  pointer-events:none;
+}
+.lg{display:flex;align-items:center;gap:7px;font-size:10px;color:#667}
+.lg-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.lg-line{width:18px;height:3px;border-radius:2px;flex-shrink:0}
+
+/* ── Zoom buttons ───────────────────────────────────────────── */
+#zoom-btns{
+  position:absolute;bottom:10px;right:14px;display:flex;
+  flex-direction:column;gap:4px;
+}
+.zoom-btn{
+  background:rgba(255,255,255,.88);backdrop-filter:blur(6px);
+  border:1px solid #e4e8ef;color:#14213d;border-radius:6px;
+  width:30px;height:30px;cursor:pointer;font-size:16px;
+  display:flex;align-items:center;justify-content:center;
+}
+.zoom-btn:hover{background:#fff;border-color:#b8bcc8}
+
+/* ── Data table ─────────────────────────────────────────────── */
+#tbl-wrap{
+  height:190px;overflow-y:auto;flex-shrink:0;background:#fff;
+}
+table{width:100%;border-collapse:collapse;font-size:11px;
+  font-family:'Courier New',monospace}
+thead{position:sticky;top:0;background:#fff;z-index:10;
+  border-bottom:2px solid #e4e8ef}
+th{padding:6px 14px;color:#9aa4b2;text-align:left;font-weight:600;
+   font-size:10px;letter-spacing:.5px;text-transform:uppercase}
+td{padding:3px 14px;border-bottom:1px solid #f2f4f7;color:#1a1a2e}
+.r-new td{color:#2d7a45;font-weight:600;background:#f0faf4}
+.r-seen td{color:#667}
 </style>
 </head>
 <body>
+
 <div id="ctrl">
-  <button id="bp">◀ Prev</button>
-  <button id="bpl">▶ Play</button>
-  <button id="bn">Next ▶</button>
-  <span id="dl">—</span>
-  <div id="pw"><div id="pb"></div></div>
+  <button class="btn" id="b-prev">&#9664; Prev</button>
+  <button class="btn primary" id="b-play">&#9654; Play</button>
+  <button class="btn" id="b-next">Next &#9654;</button>
+  <span id="date-badge">—</span>
+  <div id="prog-track">
+    <div id="prog-fill"></div>
+    <div id="prog-thumb"></div>
+  </div>
   <span id="cnt"></span>
+  <button class="btn" id="b-fit">&#8853; Fit</button>
 </div>
-<div id="cw"><canvas id="c"></canvas></div>
-<div id="tw">
-<table>
-  <thead><tr>
-    <th>Plant Code</th><th>Sec Stolons</th><th>Sec DPs</th>
-    <th>Ter Stolons</th><th>Ter DPs</th><th>Length (cm)</th>
-  </tr></thead>
-  <tbody id="tb"></tbody>
-</table>
+
+<div id="svg-wrap">
+  <svg id="tree-svg"></svg>
+
+  <div id="stats">
+    <div class="stat"><div class="stat-v" id="sv">0</div><div class="stat-l">VISIBLE</div></div>
+    <div class="stat"><div class="stat-v" id="sn">0</div><div class="stat-l">NEW</div></div>
+    <div class="stat"><div class="stat-v" id="st2">0</div><div class="stat-l">TOTAL DPs</div></div>
+  </div>
+
+  <div id="legend">
+    <div class="lg"><div class="lg-line" style="background:#2d7a45"></div>Primary stolon</div>
+    <div class="lg"><div class="lg-line" style="background:#4ade80;height:2px"></div>Secondary</div>
+    <div class="lg"><div class="lg-line" style="background:#86efac;height:1.5px"></div>Tertiary+</div>
+    <div class="lg"><div class="lg-dot" style="background:#d97706;width:10px;height:10px;border-radius:2px"></div>Crown</div>
+    <div class="lg"><div class="lg-dot" style="background:#fbbf24;border-radius:1px;width:9px;height:9px"></div>Node (&#10005;)</div>
+    <div class="lg"><div class="lg-dot" style="border:2px solid #ef4444;background:none"></div>Daughter (&#9675;)</div>
+  </div>
+
+  <div id="zoom-btns">
+    <button class="zoom-btn" id="bzi">+</button>
+    <button class="zoom-btn" id="bzo">&#8722;</button>
+  </div>
 </div>
+
+<div id="tbl-wrap">
+  <table>
+    <thead><tr>
+      <th>Plant Code</th><th>Sec Stolons</th><th>Sec DPs</th>
+      <th>Ter Stolons</th><th>Ter DPs</th><th>Length&nbsp;cm</th>
+    </tr></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+
 <script>
-const D=__DATA__;
-const cv=document.getElementById('c'),ctx=cv.getContext('2d');
-cv.width=D.width; cv.height=D.height;
+const DATA=__DATA__;
 
-let di=0,playing=false,tmr=null;
-const IV=2500;
-const SC=['#22c55e','#4ade80','#86efac','#bbf7d0'];
+// ── Palette ────────────────────────────────────────────────────
+const SC=['#2d7a45','#4ade80','#86efac','#bbf7d0'];
+const SW=[3,2,1.5,1];
 function sc(o){return SC[Math.min(o-1,3)];}
+function sw(o){return SW[Math.min(o-1,3)];}
 
-function render(){
-  ctx.clearRect(0,0,cv.width,cv.height);
-  ctx.fillStyle='#0d1117';
-  ctx.fillRect(0,0,cv.width,cv.height);
-  for(const el of D.elements){
-    const seen=el.first_date<=di;
-    const isnew=el.first_date===di;
-    const future=el.first_date>di;
-    ctx.globalAlpha=1;
-    if(el.type==='crown'){
-      ctx.beginPath();ctx.arc(el.x,el.y,14,0,Math.PI*2);
-      ctx.fillStyle='#d97706';ctx.fill();
-      ctx.strokeStyle='rgba(255,255,255,0.3)';ctx.lineWidth=1.5;ctx.stroke();
-      ctx.fillStyle='#fff';ctx.font='bold 11px monospace';
-      ctx.textAlign='center';ctx.textBaseline='middle';
-      ctx.fillText(el.label,el.x,el.y);
-    } else if(el.type==='segment'){
-      ctx.globalAlpha=future?0.07:(isnew?1.0:0.7);
-      ctx.beginPath();ctx.moveTo(el.x1,el.y1);ctx.lineTo(el.x2,el.y2);
-      ctx.strokeStyle=future?'#1a2a1a':sc(el.order);
-      ctx.lineWidth=future?0.5:Math.max(0.5,3.5-el.order*0.8);
-      ctx.stroke();
-    } else if(el.type==='node'){
-      ctx.globalAlpha=future?0.07:1.0;
-      const s=isnew?4.5:2.5;
-      ctx.strokeStyle=future?'#1e2d1e':(isnew?'#ffffff':'#fbbf24');
-      ctx.lineWidth=isnew?1.5:0.8;
-      ctx.beginPath();
-      ctx.moveTo(el.x-s,el.y-s);ctx.lineTo(el.x+s,el.y+s);
-      ctx.moveTo(el.x+s,el.y-s);ctx.lineTo(el.x-s,el.y+s);
-      ctx.stroke();
-    } else if(el.type==='daughter'){
-      ctx.globalAlpha=future?0.05:1.0;
-      const r=isnew?5.5:3.5;
-      ctx.beginPath();ctx.arc(el.x,el.y,r,0,Math.PI*2);
-      ctx.strokeStyle=future?'#1a1a1a':(isnew?'#ff6b6b':'#ef4444');
-      ctx.lineWidth=isnew?2:1;
-      ctx.stroke();
-      if(isnew){ctx.globalAlpha=0.2;ctx.fillStyle='#ff6b6b';ctx.fill();}
-    }
-  }
-  ctx.globalAlpha=1;
+// ── State ──────────────────────────────────────────────────────
+let di=0,playing=false,tmr=null;
+const IV=2400;
+
+// ── SVG + zoom ─────────────────────────────────────────────────
+const wrap=document.getElementById('svg-wrap');
+const W=wrap.clientWidth||900, H=wrap.clientHeight||460;
+
+const svg=d3.select('#tree-svg')
+  .attr('viewBox',`0 0 ${W} ${H}`)
+  .attr('preserveAspectRatio','xMidYMid meet');
+
+// defs: glow + arrowhead
+const defs=svg.append('defs');
+const f=defs.append('filter').attr('id','glow').attr('x','-40%').attr('y','-40%').attr('width','180%').attr('height','180%');
+f.append('feGaussianBlur').attr('stdDeviation','2.5').attr('result','cb');
+const fm=f.append('feMerge');
+fm.append('feMergeNode').attr('in','cb');
+fm.append('feMergeNode').attr('in','SourceGraphic');
+
+const zoom=d3.zoom().scaleExtent([0.05,8])
+  .on('zoom',e=>mainG.attr('transform',e.transform));
+svg.call(zoom).on('dblclick.zoom',null);
+
+const mainG=svg.append('g');
+
+// ── D3 hierarchy + layout ──────────────────────────────────────
+const hier=d3.hierarchy(DATA.tree);
+const nLeaves=hier.leaves().length;
+
+// Use nodeSize for consistent spacing regardless of tree width
+const DX=Math.max(18, Math.min(36, (W-80)/Math.max(nLeaves,1)));
+const DY=90;
+d3.tree().nodeSize([DX,DY])(hier);
+
+// Override Y with depth_cm for realistic internode proportions
+const maxD=Math.max(...hier.descendants().map(d=>d.data.depth_cm||0));
+if(maxD>0){
+  const treeH=(H-80)*0.92;
+  hier.each(d=>{d.y=40+(d.data.depth_cm/maxD)*treeH;});
 }
 
+// ── Draw links ─────────────────────────────────────────────────
+const lgen=d3.linkVertical().x(d=>d.x).y(d=>d.y);
+const linkG=mainG.append('g').attr('class','links');
+const links=linkG.selectAll('path')
+  .data(hier.links())
+  .join('path')
+  .attr('class','link')
+  .attr('d',lgen)
+  .attr('stroke',d=>sc(d.target.data.order||1))
+  .attr('stroke-width',d=>sw(d.target.data.order||1))
+  .attr('opacity',0.04);
+
+// ── Draw nodes ─────────────────────────────────────────────────
+const nodeG=mainG.append('g').attr('class','nodes');
+const ng=nodeG.selectAll('g')
+  .data(hier.descendants())
+  .join('g')
+  .attr('transform',d=>`translate(${d.x},${d.y})`);
+
+// Crown
+ng.filter(d=>d.data.type==='crown').each(function(d){
+  const g2=d3.select(this);
+  g2.append('circle').attr('r',13).attr('fill','#d97706')
+    .attr('stroke','#fef3c7').attr('stroke-width',2)
+    .attr('filter','url(#glow)');
+  g2.append('text').attr('text-anchor','middle').attr('dominant-baseline','central')
+    .attr('fill','#fff').attr('font-size','10px').attr('font-weight','700')
+    .text(d.data.label||'');
+});
+
+// Stolon nodes — × mark
+const nonCrown=ng.filter(d=>d.data.type!=='crown');
+nonCrown.append('line').attr('class','xa')
+  .attr('x1',-3).attr('y1',-3).attr('x2',3).attr('y2',3)
+  .attr('stroke','#fbbf24').attr('stroke-width',1.3).attr('opacity',0.04);
+nonCrown.append('line').attr('class','xb')
+  .attr('x1',3).attr('y1',-3).attr('x2',-3).attr('y2',3)
+  .attr('stroke','#fbbf24').attr('stroke-width',1.3).attr('opacity',0.04);
+
+// Daughter plants — ○ ring (offset slightly to right so it doesn't overlap ×)
+ng.filter(d=>d.data.has_dp)
+  .append('circle').attr('class','dp')
+  .attr('cx',6).attr('cy',0)
+  .attr('r',5).attr('fill','none')
+  .attr('stroke','#ef4444').attr('stroke-width',1.8).attr('opacity',0.04);
+
+// ── Fit view ───────────────────────────────────────────────────
+function fitView(anim){
+  const b=mainG.node().getBBox();
+  if(!b.width||!b.height)return;
+  const sc2=Math.min(.95,Math.min((W-60)/(b.width+60),(H-40)/(b.height+40)));
+  const tx=W/2-sc2*(b.x+b.width/2);
+  const ty=H/2-sc2*(b.y+b.height/2);
+  const t=d3.zoomIdentity.translate(tx,ty).scale(sc2);
+  (anim?svg.transition().duration(650):svg).call(zoom.transform,t);
+}
+fitView(false);
+
+// ── Render ─────────────────────────────────────────────────────
+function render(anim){
+  const dur=anim?450:0;
+  const n=DATA.dates.length;
+
+  // Links
+  links.transition().duration(dur)
+    .attr('opacity',d=>{
+      const f=d.target.data.first_date;
+      return f>di?.04:(f===di?1:.6);
+    })
+    .attr('stroke-width',d=>{
+      const f=d.target.data.first_date;
+      return f===di?sw(d.target.data.order||1)*2:sw(d.target.data.order||1);
+    });
+
+  // × marks
+  nonCrown.select('.xa').transition().duration(dur)
+    .attr('x1',d=>d.data.first_date<=di?-3.5:-2.5)
+    .attr('y1',d=>d.data.first_date<=di?-3.5:-2.5)
+    .attr('x2',d=>d.data.first_date<=di?3.5:2.5)
+    .attr('y2',d=>d.data.first_date<=di?3.5:2.5)
+    .attr('stroke',d=>d.data.first_date>di?'#d8dce4':(d.data.first_date===di?'#92400e':'#fbbf24'))
+    .attr('stroke-width',d=>d.data.first_date===di?2:1.3)
+    .attr('opacity',d=>d.data.first_date>di?.05:1);
+
+  nonCrown.select('.xb').transition().duration(dur)
+    .attr('stroke',d=>d.data.first_date>di?'#d8dce4':(d.data.first_date===di?'#92400e':'#fbbf24'))
+    .attr('stroke-width',d=>d.data.first_date===di?2:1.3)
+    .attr('opacity',d=>d.data.first_date>di?.05:1);
+
+  // ○ daughter rings
+  ng.filter(d=>d.data.has_dp).select('.dp').transition().duration(dur)
+    .attr('r',d=>d.data.dp_first_date===di?7:5)
+    .attr('stroke',d=>d.data.dp_first_date>di?'#d8dce4':(d.data.dp_first_date===di?'#dc2626':'#ef4444'))
+    .attr('stroke-width',d=>d.data.dp_first_date===di?2.5:1.8)
+    .attr('opacity',d=>d.data.dp_first_date>di?.04:1)
+    .attr('filter',d=>d.data.dp_first_date===di?'url(#glow)':null);
+
+  // Entrance pop for newly visible nodes
+  if(anim){
+    ng.filter(d=>d.data.first_date===di)
+      .attr('transform',d=>`translate(${d.x},${d.y}) scale(0)`)
+      .transition().duration(400).ease(d3.easeBackOut.overshoot(1.5))
+      .attr('transform',d=>`translate(${d.x},${d.y}) scale(1)`);
+    ng.filter(d=>d.data.has_dp&&d.data.dp_first_date===di)
+      .select('.dp')
+      .attr('r',0)
+      .transition().duration(400).delay(100).ease(d3.easeBackOut)
+      .attr('r',7);
+  }
+
+  // Stats
+  const dps=hier.descendants().filter(d=>d.data.has_dp);
+  document.getElementById('st2').textContent=dps.length;
+  document.getElementById('sv').textContent=dps.filter(d=>d.data.dp_first_date<=di).length;
+  document.getElementById('sn').textContent=dps.filter(d=>d.data.dp_first_date===di).length;
+}
+
+// ── Table ──────────────────────────────────────────────────────
 function updateTable(){
-  const date=D.dates[di];
-  const prevDates=D.dates.slice(0,di);
+  const date=DATA.dates[di];
   const prevSet=new Set();
-  for(const d of prevDates) for(const c of(D.codes_by_date[d]||[])) prevSet.add(c);
-  const todayCodes=D.codes_by_date[date]||[];
-  const todayData=D.timeline_by_date[date]||{};
-  const newCodes=todayCodes.filter(c=>!prevSet.has(c));
-  const oldCodes=todayCodes.filter(c=>prevSet.has(c));
-  const rows=[];
-  for(const code of [...newCodes,...oldCodes]){
-    const m=todayData[code];
+  DATA.dates.slice(0,di).forEach(d=>(DATA.codes_by_date[d]||[]).forEach(c=>prevSet.add(c)));
+  const today=DATA.codes_by_date[date]||[];
+  const meas=DATA.timeline_by_date[date]||{};
+  const newCs=today.filter(c=>!prevSet.has(c));
+  const oldCs=today.filter(c=>prevSet.has(c));
+  const rows=[...newCs,...oldCs].map(code=>{
+    const m=meas[code];
+    const cls=newCs.includes(code)?'r-new':'r-seen';
     const sl=m&&m.stolon_length!=null?m.stolon_length.toFixed(1):'—';
-    const cls=newCodes.includes(code)?'rn':'rs';
-    rows.push(`<tr class="${cls}"><td>${code}</td>`+
+    return`<tr class="${cls}"><td>${code}</td>`+
       `<td>${m?m.sec_stolon:'—'}</td><td>${m?m.sec_daughters:'—'}</td>`+
       `<td>${m?m.ter_stolon:'—'}</td><td>${m?m.ter_daughters:'—'}</td>`+
-      `<td>${sl}</td></tr>`);
-  }
-  document.getElementById('tb').innerHTML=rows.join('');
+      `<td>${sl}</td></tr>`;
+  });
+  document.getElementById('tbody').innerHTML=rows.join('');
 }
 
-function ui(){
-  document.getElementById('dl').textContent=D.dates[di];
-  const n=D.dates.length;
-  document.getElementById('cnt').textContent=(di+1)+' / '+n;
-  document.getElementById('pb').style.width=(n>1?di/(n-1)*100:0)+'%';
-  render();updateTable();
+// ── Controls UI ────────────────────────────────────────────────
+function updateUI(){
+  const date=DATA.dates[di];
+  const fmt=new Date(date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+  document.getElementById('date-badge').textContent=fmt;
+  const n=DATA.dates.length;
+  document.getElementById('cnt').textContent=`${di+1} / ${n}`;
+  const pct=n>1?di/(n-1)*100:0;
+  document.getElementById('prog-fill').style.width=pct+'%';
+  document.getElementById('prog-thumb').style.left=pct+'%';
 }
 
-function goTo(i){di=Math.max(0,Math.min(D.dates.length-1,i));ui();}
+function goTo(i,anim){
+  di=Math.max(0,Math.min(DATA.dates.length-1,i));
+  updateUI();render(!!anim);updateTable();
+}
 
 function startPlay(){
   playing=true;
-  document.getElementById('bpl').textContent='⏸ Pause';
-  if(di>=D.dates.length-1)di=-1;
+  document.getElementById('b-play').textContent='⏸ Pause';
+  document.getElementById('b-play').classList.add('primary');
+  if(di>=DATA.dates.length-1)di=-1;
   tmr=setInterval(()=>{
-    if(di<D.dates.length-1){goTo(di+1);}else stopPlay();
+    if(di<DATA.dates.length-1){goTo(di+1,true);}else stopPlay();
   },IV);
 }
 function stopPlay(){
   playing=false;
-  document.getElementById('bpl').textContent='▶ Play';
+  document.getElementById('b-play').textContent='▶ Play';
   if(tmr){clearInterval(tmr);tmr=null;}
 }
 
-document.getElementById('bp').onclick=()=>{stopPlay();goTo(di-1);};
-document.getElementById('bn').onclick=()=>{stopPlay();goTo(di+1);};
-document.getElementById('bpl').onclick=()=>{playing?stopPlay():startPlay();};
-document.getElementById('pw').addEventListener('click',e=>{
+document.getElementById('b-prev').onclick=()=>{stopPlay();goTo(di-1,true);};
+document.getElementById('b-next').onclick=()=>{stopPlay();goTo(di+1,true);};
+document.getElementById('b-play').onclick=()=>playing?stopPlay():startPlay();
+document.getElementById('b-fit').onclick=()=>fitView(true);
+document.getElementById('bzi').onclick=()=>svg.transition().duration(300).call(zoom.scaleBy,1.5);
+document.getElementById('bzo').onclick=()=>svg.transition().duration(300).call(zoom.scaleBy,0.67);
+
+document.getElementById('prog-track').addEventListener('click',e=>{
   const r=e.currentTarget.getBoundingClientRect();
-  stopPlay();goTo(Math.round((e.clientX-r.left)/r.width*(D.dates.length-1)));
+  stopPlay();goTo(Math.round((e.clientX-r.left)/r.width*(DATA.dates.length-1)),true);
 });
 
-goTo(0);
+// ── Init ───────────────────────────────────────────────────────
+goTo(0,false);
 </script>
 </body>
 </html>"""
@@ -699,74 +834,51 @@ goTo(0);
 def build_js_html(plant: Plant,
                   ws1_cultivar: dict,
                   mother_id: int,
-                  canvas_w: int = 900,
+                  canvas_w: int = 900,   # kept for API compat, not used by D3
                   canvas_h: int = 480) -> str:
     """
-    Build a self-contained HTML page with a temporal canvas animation.
+    Build a self-contained D3-animated HTML page for one mother plant.
 
-    Parameters
-    ----------
-    plant         : Plant object from load_all_plants()
-    ws1_cultivar  : ws1_data[cultivar_name] dict from ws1_parser.load_ws1()
-    mother_id     : which mother to display (1, 2, or 3)
-    canvas_w      : target canvas width in px (may grow to fit tree)
-    canvas_h      : canvas height in px
-
-    Returns
-    -------
-    Complete self-contained HTML string.
+    Returns complete HTML string suitable for html.Iframe(srcDoc=...).
     """
     if not plant or not ws1_cultivar:
-        return _empty_html("No data available for this cultivar / mother.")
+        return _empty_html("No data available.")
 
     dates = ws1_cultivar.get("dates", [])
     if not dates:
-        return _empty_html("No temporal dates found in Worksheet 1 for this cultivar.")
+        return _empty_html("No dates found in Worksheet 1 for this cultivar.")
 
     codes_by_date  = ws1_cultivar.get("codes_by_date", {})
     ws1_plants_raw = ws1_cultivar.get("plants", {})
 
-    # code_first_date: code → first date index it appears in codes_by_date
+    # code → first date index it appears in codes_by_date
     code_first_date: dict[str, int] = {}
-    for di, d in enumerate(dates):
+    for idx, d in enumerate(dates):
         for code in codes_by_date.get(d, []):
-            if code not in code_first_date:
-                code_first_date[code] = di
+            code_first_date.setdefault(code, idx)
 
-    # Check that this mother exists in the plant
-    if mother_id not in plant.mothers:
-        available = plant.mother_ids()
-        if not available:
-            return _empty_html(f"No mothers found in WS3 data for this cultivar.")
-        mother_id = available[0]
+    # Resolve mother
+    if mother_id not in plant.mothers and plant.mothers:
+        mother_id = min(plant.mothers)
 
-    # Compute layout
-    elements, actual_w, actual_h = _compute_layout(
-        plant, mother_id, canvas_w, canvas_h, code_first_date, len(dates)
-    )
-    if not elements:
-        return _empty_html(f"No stolon structure found for Mother {mother_id}.")
+    hierarchy = _to_d3_hierarchy(plant, mother_id, code_first_date, len(dates))
+    if not hierarchy.get("children"):
+        return _empty_html(f"No stolon data for Mother {mother_id}.")
 
-    # Build timeline_by_date: {date → {code → measurements}}
-    timeline_by_date: dict[str, dict] = {}
-    for d in dates:
-        tbl: dict[str, dict] = {}
-        for code, date_data in ws1_plants_raw.items():
-            if d in date_data:
-                tbl[code] = date_data[d]
-        timeline_by_date[d] = tbl
+    # timeline_by_date: {date → {code → measurements}}
+    timeline_by_date: dict[str, dict] = {
+        d: {code: data[d] for code, data in ws1_plants_raw.items() if d in data}
+        for d in dates
+    }
 
     payload = {
-        "width":            actual_w,
-        "height":           actual_h,
-        "elements":         elements,
+        "tree":             hierarchy,
         "dates":            dates,
         "codes_by_date":    codes_by_date,
         "timeline_by_date": timeline_by_date,
     }
 
-    data_json = json.dumps(payload, separators=(",", ":"))
-    return _JS_TEMPLATE.replace("__DATA__", data_json)
+    return _JS_TEMPLATE.replace("__DATA__", json.dumps(payload, separators=(",", ":")))
 
 
 def plant_summary(plant: Plant, mother_id: Optional[int] = None) -> dict:
@@ -786,8 +898,10 @@ def plant_summary(plant: Plant, mother_id: Optional[int] = None) -> dict:
 
 def _empty_html(msg: str = "No data") -> str:
     return (
-        "<!DOCTYPE html><html><body style='margin:0;background:#0d1117;"
-        "display:flex;align-items:center;justify-content:center;height:100vh;"
-        "font-family:monospace;color:#555;font-size:14px'>"
+        "<!DOCTYPE html><html><body style='"
+        "margin:0;background:#f2f4f7;display:flex;align-items:center;"
+        "justify-content:center;height:100vh;"
+        "font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;"
+        "color:#9aa4b2;font-size:14px'>"
         f"<p>{msg}</p></body></html>"
     )
