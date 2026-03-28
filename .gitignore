@@ -1,0 +1,25 @@
+# Data files — raw Excel workbooks (keep locally, do not commit)
+*.xlsx
+*.xls
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# macOS
+.DS_Store
+._*
+
+# Generated / processed outputs (reproducible from source)
+data/processed/
+data/raw/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Logs
+*.log
