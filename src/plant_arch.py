@@ -438,391 +438,416 @@ _JS_TEMPLATE = """\
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<title>Strawberry Plant Architecture</title>
 <script src="https://d3js.org/d3.v7.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden;
-  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Inter',sans-serif}
-body{background:#f2f4f7;display:flex;flex-direction:column}
+  font-family:'Segoe UI',Tahoma,Geneva,Verdana,-apple-system,sans-serif}
+body{background:#f4f1ea;color:#2c3e50;display:flex;flex-direction:column}
 
-/* ── Controls bar (matches dashboard filter-card) ────────────── */
 #ctrl{
-  background:#fff;border-bottom:1px solid #e4e8ef;
-  padding:10px 20px;display:flex;align-items:center;gap:12px;
-  flex-shrink:0;flex-wrap:wrap;min-height:52px;
+  background:#faf8f5;border-bottom:1px solid #e8e3d9;
+  padding:10px 16px;display:flex;align-items:center;gap:10px;
+  flex-shrink:0;flex-wrap:wrap;min-height:50px;
 }
 .btn{
-  background:#f2f4f7;border:1px solid #d8dce4;color:#14213d;
-  padding:5px 14px;border-radius:20px;cursor:pointer;font-size:12px;
-  font-weight:500;transition:all .15s;white-space:nowrap;
+  background:#fff;border:1px solid #d4cfc4;color:#3e5c29;
+  padding:5px 12px;border-radius:8px;cursor:pointer;font-size:12px;
+  font-weight:600;transition:background .15s,border-color .15s;white-space:nowrap;
 }
-.btn:hover{background:#e4e8ef;border-color:#b8bcc8}
-.btn.primary{background:#14213d;color:#7ec8a4;border-color:#14213d}
-.btn.primary:hover{background:#1e2e52}
+.btn:hover{background:#f0ebe3;border-color:#b8b0a2}
+.btn:focus{outline:2px solid #5d8a3e;outline-offset:2px}
+.btn.primary{background:#3e5c29;color:#f4f1ea;border-color:#3e5c29}
+.btn.primary:hover{background:#2d4420}
 #date-badge{
-  background:#14213d;color:#7ec8a4;
-  padding:4px 14px;border-radius:20px;font-size:12px;font-weight:600;
-  min-width:120px;text-align:center;letter-spacing:.3px;
+  background:#ecf4e8;color:#2d4a1c;padding:5px 14px;border-radius:8px;
+  font-size:13px;font-weight:700;min-width:130px;text-align:center;
+  border:1px solid #c5d9b8;
 }
 #prog-track{
-  flex:1;height:6px;background:#e4e8ef;border-radius:3px;cursor:pointer;
+  flex:1;height:7px;background:#e0dcd4;border-radius:4px;cursor:pointer;
   position:relative;min-width:80px;
 }
+#prog-track:focus{outline:2px solid #5d8a3e;outline-offset:3px}
 #prog-fill{
-  height:100%;border-radius:3px;width:0%;
-  background:linear-gradient(90deg,#2d7a45,#7ec8a4);transition:width .35s ease;
+  height:100%;border-radius:4px;width:0%;
+  background:linear-gradient(90deg,#5d8a3e,#7bb242);transition:width .35s ease;
 }
 #prog-thumb{
-  position:absolute;width:13px;height:13px;background:#2d7a45;
+  position:absolute;width:12px;height:12px;background:#5d8a3e;
   border-radius:50%;top:50%;left:0%;
   transform:translate(-50%,-50%);transition:left .35s ease;
-  box-shadow:0 0 0 3px rgba(45,122,69,.2);
+  box-shadow:0 0 0 2px rgba(93,138,62,.3);
 }
-#cnt{font-size:11px;color:#9aa4b2;white-space:nowrap}
+#cnt{font-size:11px;color:#6b7d62;white-space:nowrap}
+#hint{font-size:10px;color:#a8b0a0;white-space:nowrap}
 
-/* ── SVG area ───────────────────────────────────────────────── */
-#svg-wrap{flex:1;min-height:0;position:relative;background:#f8fafb;
-  border-bottom:1px solid #e4e8ef;overflow:hidden}
-svg{width:100%;height:100%;cursor:grab}
-svg:active{cursor:grabbing}
-.link{fill:none;stroke-linecap:round;stroke-linejoin:round}
-
-/* ── Overlay stats ──────────────────────────────────────────── */
-#stats{
-  position:absolute;top:10px;right:14px;display:flex;gap:12px;
-  pointer-events:none;
+#svg-wrap{
+  flex:1;min-height:0;position:relative;
+  background:linear-gradient(180deg,#faf8f5 0%,#f0ebe3 100%);
+  border-bottom:1px solid #e8e3d9;overflow:hidden;
 }
-.stat{
-  background:rgba(255,255,255,.88);backdrop-filter:blur(6px);
-  border:1px solid #e4e8ef;border-radius:8px;
-  padding:6px 12px;text-align:center;
-}
-.stat-v{font-size:18px;font-weight:700;color:#14213d;line-height:1}
-.stat-l{font-size:9px;color:#9aa4b2;letter-spacing:.8px;margin-top:2px}
+svg{width:100%;height:100%;min-height:400px;display:block;cursor:default}
 
-/* ── Legend ─────────────────────────────────────────────────── */
+.link{fill:none;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+.leaflet{stroke-width:0.9px;pointer-events:none}
+.crown-circle{stroke-width:2px;pointer-events:none}
+.crown-text{font-size:11px;font-weight:800;fill:#fff;pointer-events:none}
+.dp-ring{fill:none;stroke-width:2px;pointer-events:none}
+.hit-area{fill:transparent;cursor:pointer;stroke:none}
+
+#tooltip{
+  position:fixed;display:none;
+  background:rgba(22,32,18,.93);color:#e4f2db;
+  border:1px solid rgba(140,190,110,.25);border-radius:10px;
+  padding:10px 14px;font-size:11px;line-height:1.65;
+  pointer-events:none;z-index:9999;max-width:230px;
+  box-shadow:0 4px 18px rgba(0,0,0,.3);
+}
+.tt-code{font-weight:800;font-size:12px;color:#9de05a;margin-bottom:5px}
+.tt-row{display:flex;justify-content:space-between;gap:12px;color:#b8d4a0}
+.tt-row span:last-child{color:#fff;font-weight:600}
+.tt-date{color:#82a070;font-size:10px;margin-top:5px;border-top:1px solid rgba(255,255,255,.08);padding-top:4px}
+
 #legend{
-  position:absolute;bottom:10px;left:14px;
-  background:rgba(255,255,255,.88);backdrop-filter:blur(6px);
-  border:1px solid #e4e8ef;border-radius:8px;
-  padding:8px 12px;display:flex;flex-direction:column;gap:5px;
-  pointer-events:none;
+  position:absolute;bottom:10px;left:50%;transform:translateX(-50%);
+  background:rgba(255,255,255,.92);border:1px solid #e8e3d9;border-radius:10px;
+  padding:6px 14px;display:flex;flex-wrap:wrap;gap:10px;justify-content:center;
+  pointer-events:none;font-size:10px;color:#5c6b52;max-width:96%;
+  box-shadow:0 1px 3px rgba(0,0,0,.06);
 }
-.lg{display:flex;align-items:center;gap:7px;font-size:10px;color:#667}
-.lg-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
-.lg-line{width:18px;height:3px;border-radius:2px;flex-shrink:0}
-
-/* ── Zoom buttons ───────────────────────────────────────────── */
-#zoom-btns{
-  position:absolute;bottom:10px;right:14px;display:flex;
-  flex-direction:column;gap:4px;
-}
-.zoom-btn{
-  background:rgba(255,255,255,.88);backdrop-filter:blur(6px);
-  border:1px solid #e4e8ef;color:#14213d;border-radius:6px;
-  width:30px;height:30px;cursor:pointer;font-size:16px;
-  display:flex;align-items:center;justify-content:center;
-}
-.zoom-btn:hover{background:#fff;border-color:#b8bcc8}
-
-/* ── Data table ─────────────────────────────────────────────── */
-#tbl-wrap{
-  height:190px;overflow-y:auto;flex-shrink:0;background:#fff;
-}
-table{width:100%;border-collapse:collapse;font-size:11px;
-  font-family:'Courier New',monospace}
-thead{position:sticky;top:0;background:#fff;z-index:10;
-  border-bottom:2px solid #e4e8ef}
-th{padding:6px 14px;color:#9aa4b2;text-align:left;font-weight:600;
-   font-size:10px;letter-spacing:.5px;text-transform:uppercase}
-td{padding:3px 14px;border-bottom:1px solid #f2f4f7;color:#1a1a2e}
-.r-new td{color:#2d7a45;font-weight:600;background:#f0faf4}
-.r-seen td{color:#667}
+.lg{display:flex;align-items:center;gap:5px}
+.lg-sw{width:18px;height:4px;border-radius:2px}
+.lg-lf{width:10px;height:13px;background:#7bb242;border-radius:50%;border:1px solid #4a752c}
+.lg-cr{width:9px;height:9px;border-radius:50%;background:#3e5c29;border:1.5px solid #c8e063}
+.lg-dp{width:9px;height:9px;border-radius:50%;border:2px solid #E69F00}
 </style>
 </head>
 <body>
 
-<div id="ctrl">
-  <button class="btn" id="b-prev">&#9664; Prev</button>
-  <button class="btn primary" id="b-play">&#9654; Play</button>
-  <button class="btn" id="b-next">Next &#9654;</button>
-  <span id="date-badge">—</span>
-  <div id="prog-track">
+<div id="ctrl" role="toolbar" aria-label="Playback controls">
+  <button class="btn" id="b-prev" aria-label="Previous date">&#9664; Prev</button>
+  <button class="btn primary" id="b-play" aria-label="Play">&#9654; Play</button>
+  <button class="btn" id="b-next" aria-label="Next date">Next &#9654;</button>
+  <span id="date-badge" role="status" aria-live="polite">—</span>
+  <div id="prog-track" role="slider" aria-label="Date timeline"
+       aria-valuemin="0" aria-valuenow="0" tabindex="0">
     <div id="prog-fill"></div>
     <div id="prog-thumb"></div>
   </div>
   <span id="cnt"></span>
-  <button class="btn" id="b-fit">&#8853; Fit</button>
+  <button class="btn" id="b-export" aria-label="Export SVG">&#8681; SVG</button>
+  <span id="hint">&#8592; &#8594; Space</span>
 </div>
 
 <div id="svg-wrap">
-  <svg id="tree-svg"></svg>
-
-  <div id="stats">
-    <div class="stat"><div class="stat-v" id="sv">0</div><div class="stat-l">VISIBLE</div></div>
-    <div class="stat"><div class="stat-v" id="sn">0</div><div class="stat-l">NEW</div></div>
-    <div class="stat"><div class="stat-v" id="st2">0</div><div class="stat-l">TOTAL DPs</div></div>
-  </div>
-
+  <svg id="tree-svg" aria-label="Strawberry plant growth animation" role="img"></svg>
   <div id="legend">
-    <div class="lg"><div class="lg-line" style="background:#2d7a45"></div>Primary stolon</div>
-    <div class="lg"><div class="lg-line" style="background:#4ade80;height:2px"></div>Secondary</div>
-    <div class="lg"><div class="lg-line" style="background:#86efac;height:1.5px"></div>Tertiary+</div>
-    <div class="lg"><div class="lg-dot" style="background:#d97706;width:10px;height:10px;border-radius:2px"></div>Crown</div>
-    <div class="lg"><div class="lg-dot" style="background:#fbbf24;border-radius:1px;width:9px;height:9px"></div>Node (&#10005;)</div>
-    <div class="lg"><div class="lg-dot" style="border:2px solid #ef4444;background:none"></div>Daughter (&#9675;)</div>
-  </div>
-
-  <div id="zoom-btns">
-    <button class="zoom-btn" id="bzi">+</button>
-    <button class="zoom-btn" id="bzo">&#8722;</button>
+    <div class="lg"><div class="lg-sw" style="background:#009E73"></div>Primary</div>
+    <div class="lg"><div class="lg-sw" style="background:#0072B2"></div>Secondary</div>
+    <div class="lg"><div class="lg-sw" style="background:#D55E00"></div>Tertiary</div>
+    <div class="lg"><div class="lg-sw" style="background:#CC79A7"></div>Quaternary+</div>
+    <div class="lg"><div class="lg-lf"></div>Node / leaf</div>
+    <div class="lg"><div class="lg-dp"></div>Daughter plant</div>
+    <div class="lg"><div class="lg-cr"></div>Crown</div>
   </div>
 </div>
 
-<div id="tbl-wrap">
-  <table>
-    <thead><tr>
-      <th>Plant Code</th><th>Sec Stolons</th><th>Sec DPs</th>
-      <th>Ter Stolons</th><th>Ter DPs</th><th>Length&nbsp;cm</th>
-    </tr></thead>
-    <tbody id="tbody"></tbody>
-  </table>
-</div>
+<div id="tooltip"></div>
 
 <script>
 const DATA=__DATA__;
 
-// ── Palette ────────────────────────────────────────────────────
-const SC=['#2d7a45','#4ade80','#86efac','#bbf7d0'];
-const SW=[3,2,1.5,1];
-function sc(o){return SC[Math.min(o-1,3)];}
-function sw(o){return SW[Math.min(o-1,3)];}
+/* Okabe-Ito colorblind-safe palette indexed by stolon order */
+const OCOL=['#4a7c59','#009E73','#0072B2','#D55E00','#CC79A7'];
+const OWID=[6,4.2,3.2,2.4,1.8];
+const LFIL=['#6aaa3e','#7bb242','#5a9de0','#e87a3e','#d982c0'];
+const LSTK=['#4a752c','#4a752c','#3870b0','#b05020','#9a5090'];
 
-// ── State ──────────────────────────────────────────────────────
+function oc(o){return OCOL[Math.min(o,4)];}
+function ow(o){return OWID[Math.min(o,4)];}
+function lf(o){return LFIL[Math.min(o,4)];}
+function ls(o){return LSTK[Math.min(o,4)];}
+
+/* Trifoliate leaf path: top leaflet + lower-left + lower-right
+   All three leaflets meet at (0,0) for clean scaling. */
+const TRI=
+  "M0,0 C-3,-4 -4,-13 0,-19 C4,-13 3,-4 0,0 Z"+
+  "M0,0 C-1,2 -11,-2 -15,5 C-13,13 -4,11 0,0 Z"+
+  "M0,0 C1,2 11,-2 15,5 C13,13 4,11 0,0 Z";
+
 let di=0,playing=false,tmr=null;
-const IV=2400;
+const IV=2200;
 
-// ── SVG + zoom ─────────────────────────────────────────────────
 const wrap=document.getElementById('svg-wrap');
-const W=wrap.clientWidth||900, H=wrap.clientHeight||460;
+const W=wrap.clientWidth||900;
+const H=Math.max(420,wrap.clientHeight||520);
 
 const svg=d3.select('#tree-svg')
   .attr('viewBox',`0 0 ${W} ${H}`)
   .attr('preserveAspectRatio','xMidYMid meet');
 
-// defs: glow + arrowhead
+/* Glow filter */
 const defs=svg.append('defs');
-const f=defs.append('filter').attr('id','glow').attr('x','-40%').attr('y','-40%').attr('width','180%').attr('height','180%');
-f.append('feGaussianBlur').attr('stdDeviation','2.5').attr('result','cb');
-const fm=f.append('feMerge');
-fm.append('feMergeNode').attr('in','cb');
+const gf=defs.append('filter').attr('id','glow')
+  .attr('x','-50%').attr('y','-50%').attr('width','200%').attr('height','200%');
+gf.append('feGaussianBlur').attr('stdDeviation','2.5').attr('result','blur');
+const fm=gf.append('feMerge');
+fm.append('feMergeNode').attr('in','blur');
 fm.append('feMergeNode').attr('in','SourceGraphic');
-
-const zoom=d3.zoom().scaleExtent([0.05,8])
-  .on('zoom',e=>mainG.attr('transform',e.transform));
-svg.call(zoom).on('dblclick.zoom',null);
 
 const mainG=svg.append('g');
 
-// ── D3 hierarchy + layout ──────────────────────────────────────
+/* Build D3 hierarchy & layout */
 const hier=d3.hierarchy(DATA.tree);
 const nLeaves=hier.leaves().length;
+const DX=Math.max(18,Math.min(38,(W-100)/Math.max(nLeaves,1)));
+d3.tree().nodeSize([DX,88])(hier);
 
-// Use nodeSize for consistent spacing regardless of tree width
-const DX=Math.max(18, Math.min(36, (W-80)/Math.max(nLeaves,1)));
-const DY=90;
-d3.tree().nodeSize([DX,DY])(hier);
-
-// Override Y with depth_cm for realistic internode proportions
+/* Override y with actual internode depth_cm for biological accuracy */
 const maxD=Math.max(...hier.descendants().map(d=>d.data.depth_cm||0));
 if(maxD>0){
-  const treeH=(H-80)*0.92;
-  hier.each(d=>{d.y=40+(d.data.depth_cm/maxD)*treeH;});
+  const treeH=(H-100)*0.88;
+  hier.each(d=>{d.y=52+(d.data.depth_cm/maxD)*treeH;});
 }
 
-// ── Draw links ─────────────────────────────────────────────────
+/* Curved Bézier stolon links, colored by stolon order */
 const lgen=d3.linkVertical().x(d=>d.x).y(d=>d.y);
-const linkG=mainG.append('g').attr('class','links');
+const linkG=mainG.append('g');
 const links=linkG.selectAll('path')
   .data(hier.links())
   .join('path')
   .attr('class','link')
   .attr('d',lgen)
-  .attr('stroke',d=>sc(d.target.data.order||1))
-  .attr('stroke-width',d=>sw(d.target.data.order||1))
+  .attr('stroke',d=>oc(d.target.data.order))
+  .attr('stroke-width',d=>ow(d.target.data.order))
   .attr('opacity',0.04);
 
-// ── Draw nodes ─────────────────────────────────────────────────
-const nodeG=mainG.append('g').attr('class','nodes');
+/* Node groups */
+const nodeG=mainG.append('g');
 const ng=nodeG.selectAll('g')
   .data(hier.descendants())
   .join('g')
   .attr('transform',d=>`translate(${d.x},${d.y})`);
 
-// Crown
+/* Crown nodes */
 ng.filter(d=>d.data.type==='crown').each(function(d){
-  const g2=d3.select(this);
-  g2.append('circle').attr('r',13).attr('fill','#d97706')
-    .attr('stroke','#fef3c7').attr('stroke-width',2)
-    .attr('filter','url(#glow)');
-  g2.append('text').attr('text-anchor','middle').attr('dominant-baseline','central')
-    .attr('fill','#fff').attr('font-size','10px').attr('font-weight','700')
+  const g=d3.select(this);
+  g.append('circle').attr('r',14).attr('class','crown-circle')
+    .attr('fill','#3e5c29').attr('stroke','#c8e063').attr('filter','url(#glow)');
+  g.append('text').attr('class','crown-text')
+    .attr('text-anchor','middle').attr('dominant-baseline','central')
     .text(d.data.label||'');
 });
 
-// Stolon nodes — × mark
+/* Trifoliate leaf clusters for non-crown nodes, colored by stolon order */
 const nonCrown=ng.filter(d=>d.data.type!=='crown');
-nonCrown.append('line').attr('class','xa')
-  .attr('x1',-3).attr('y1',-3).attr('x2',3).attr('y2',3)
-  .attr('stroke','#fbbf24').attr('stroke-width',1.3).attr('opacity',0.04);
-nonCrown.append('line').attr('class','xb')
-  .attr('x1',3).attr('y1',-3).attr('x2',-3).attr('y2',3)
-  .attr('stroke','#fbbf24').attr('stroke-width',1.3).attr('opacity',0.04);
+const leafG=nonCrown.append('g').attr('class','leaf-cluster').attr('opacity',0.04);
+leafG.append('path').attr('class','leaflet')
+  .attr('d',TRI)
+  .attr('fill',d=>lf(d.data.order))
+  .attr('stroke',d=>ls(d.data.order))
+  .attr('transform','scale(0.72)');
 
-// Daughter plants — ○ ring (offset slightly to right so it doesn't overlap ×)
-ng.filter(d=>d.data.has_dp)
-  .append('circle').attr('class','dp')
-  .attr('cx',6).attr('cy',0)
-  .attr('r',5).attr('fill','none')
-  .attr('stroke','#ef4444').attr('stroke-width',1.8).attr('opacity',0.04);
+/* Daughter plant ring (amber) */
+nonCrown.filter(d=>d.data.has_dp)
+  .append('circle').attr('class','dp-ring')
+  .attr('cx',11).attr('cy',1).attr('r',5)
+  .attr('stroke','#E69F00').attr('opacity',0.04);
 
-// ── Fit view ───────────────────────────────────────────────────
-function fitView(anim){
+/* Invisible hit areas for tooltips — cover crown + leaf nodes */
+ng.append('circle').attr('class','hit-area').attr('r',16)
+  .on('mouseover',showTip)
+  .on('mousemove',moveTip)
+  .on('mouseout',hideTip);
+
+function fitView(){
   const b=mainG.node().getBBox();
   if(!b.width||!b.height)return;
-  const sc2=Math.min(.95,Math.min((W-60)/(b.width+60),(H-40)/(b.height+40)));
-  const tx=W/2-sc2*(b.x+b.width/2);
-  const ty=H/2-sc2*(b.y+b.height/2);
-  const t=d3.zoomIdentity.translate(tx,ty).scale(sc2);
-  (anim?svg.transition().duration(650):svg).call(zoom.transform,t);
+  const sc=Math.min(.92,Math.min((W-48)/(b.width+48),(H-48)/(b.height+48)));
+  const tx=W/2-sc*(b.x+b.width/2);
+  const ty=H/2-sc*(b.y+b.height/2);
+  mainG.attr('transform',`translate(${tx},${ty}) scale(${sc})`);
 }
-fitView(false);
+fitView();
 
-// ── Render ─────────────────────────────────────────────────────
+/* ── Tooltip ──────────────────────────────────────────────────── */
+const ttEl=document.getElementById('tooltip');
+
+function fmtDate(iso){
+  try{return new Date(iso).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}
+  catch(e){return iso;}
+}
+
+function showTip(event,d){
+  let html='';
+  if(d.data.type==='crown'){
+    html=`<div class="tt-code">${d.data.label||'Crown'}</div>
+      <div class="tt-date">Mother plant — root of stolon network</div>`;
+  } else {
+    const code=d.data.code||'';
+    const oNames=['','Primary','Secondary','Tertiary','Quaternary'];
+    const oName=oNames[Math.min(d.data.order,4)]||'Stolon';
+    const fd=DATA.dates[d.data.first_date]||'';
+    const dpfd=d.data.has_dp?(DATA.dates[d.data.dp_first_date]||''):'';
+    const curDate=DATA.dates[di]||'';
+    const rec=(DATA.timeline_by_date&&DATA.timeline_by_date[curDate])?DATA.timeline_by_date[curDate][code]||null:null;
+
+    if(code)html+=`<div class="tt-code">${code}</div>`;
+    html+=`<div class="tt-row"><span>Stolon order</span><span>${oName}</span></div>`;
+    html+=`<div class="tt-row"><span>Depth</span><span>${d.data.depth_cm.toFixed(1)} cm</span></div>`;
+    if(fd)html+=`<div class="tt-row"><span>First seen</span><span>${fmtDate(fd)}</span></div>`;
+    if(d.data.has_dp&&dpfd)html+=`<div class="tt-row"><span>Daughter rooted</span><span>${fmtDate(dpfd)}</span></div>`;
+    if(rec){
+      if(rec.stolon_length!=null)html+=`<div class="tt-row"><span>Stolon length</span><span>${rec.stolon_length.toFixed(1)} cm</span></div>`;
+      if(rec.sec_stolon)html+=`<div class="tt-row"><span>Sec stolons</span><span>${rec.sec_stolon}</span></div>`;
+      if(rec.sec_daughters)html+=`<div class="tt-row"><span>Sec daughters</span><span>${rec.sec_daughters}</span></div>`;
+      if(rec.ter_stolon)html+=`<div class="tt-row"><span>Ter stolons</span><span>${rec.ter_stolon}</span></div>`;
+      if(rec.ter_daughters)html+=`<div class="tt-row"><span>Ter daughters</span><span>${rec.ter_daughters}</span></div>`;
+      if(rec.quart_stolon)html+=`<div class="tt-row"><span>Quart stolons</span><span>${rec.quart_stolon}</span></div>`;
+      if(rec.quart_daughters)html+=`<div class="tt-row"><span>Quart daughters</span><span>${rec.quart_daughters}</span></div>`;
+    }
+    if(curDate)html+=`<div class="tt-date">@ ${fmtDate(curDate)}</div>`;
+  }
+  ttEl.innerHTML=html;
+  ttEl.style.display='block';
+  moveTip(event);
+}
+
+function moveTip(event){
+  const x=event.clientX+14, y=event.clientY-28;
+  ttEl.style.left=Math.min(x,window.innerWidth-250)+'px';
+  ttEl.style.top=Math.max(y,8)+'px';
+}
+
+function hideTip(){ttEl.style.display='none';}
+
+/* ── Render ───────────────────────────────────────────────────── */
 function render(anim){
-  const dur=anim?450:0;
-  const n=DATA.dates.length;
+  const dur=anim?480:0;
 
-  // Links
+  /* Links: color by stolon order, highlight new arrivals */
   links.transition().duration(dur)
     .attr('opacity',d=>{
       const f=d.target.data.first_date;
-      return f>di?.04:(f===di?1:.6);
+      return f>di?0.04:(f===di?1:0.65);
     })
     .attr('stroke-width',d=>{
-      const f=d.target.data.first_date;
-      return f===di?sw(d.target.data.order||1)*2:sw(d.target.data.order||1);
+      const w=ow(d.target.data.order);
+      return d.target.data.first_date===di?w*1.3:w;
     });
 
-  // × marks
-  nonCrown.select('.xa').transition().duration(dur)
-    .attr('x1',d=>d.data.first_date<=di?-3.5:-2.5)
-    .attr('y1',d=>d.data.first_date<=di?-3.5:-2.5)
-    .attr('x2',d=>d.data.first_date<=di?3.5:2.5)
-    .attr('y2',d=>d.data.first_date<=di?3.5:2.5)
-    .attr('stroke',d=>d.data.first_date>di?'#d8dce4':(d.data.first_date===di?'#92400e':'#fbbf24'))
-    .attr('stroke-width',d=>d.data.first_date===di?2:1.3)
-    .attr('opacity',d=>d.data.first_date>di?.05:1);
+  /* Leaf clusters */
+  leafG.transition().duration(dur)
+    .attr('opacity',d=>d.data.first_date>di?0.04:1);
 
-  nonCrown.select('.xb').transition().duration(dur)
-    .attr('stroke',d=>d.data.first_date>di?'#d8dce4':(d.data.first_date===di?'#92400e':'#fbbf24'))
-    .attr('stroke-width',d=>d.data.first_date===di?2:1.3)
-    .attr('opacity',d=>d.data.first_date>di?.05:1);
+  leafG.select('.leaflet').transition().duration(dur)
+    .attr('transform',d=>d.data.first_date>di?'scale(0.06)':'scale(0.72)');
 
-  // ○ daughter rings
-  ng.filter(d=>d.data.has_dp).select('.dp').transition().duration(dur)
+  /* Daughter rings */
+  nonCrown.filter(d=>d.data.has_dp).select('.dp-ring').transition().duration(dur)
     .attr('r',d=>d.data.dp_first_date===di?7:5)
-    .attr('stroke',d=>d.data.dp_first_date>di?'#d8dce4':(d.data.dp_first_date===di?'#dc2626':'#ef4444'))
-    .attr('stroke-width',d=>d.data.dp_first_date===di?2.5:1.8)
-    .attr('opacity',d=>d.data.dp_first_date>di?.04:1)
+    .attr('stroke',d=>d.data.dp_first_date>di?'#e0dcd4':(d.data.dp_first_date===di?'#E69F00':'#c8a000'))
+    .attr('stroke-width',d=>d.data.dp_first_date===di?2.6:2)
+    .attr('opacity',d=>d.data.dp_first_date>di?0.04:1)
     .attr('filter',d=>d.data.dp_first_date===di?'url(#glow)':null);
 
-  // Entrance pop for newly visible nodes
+  /* Entrance animations for newly appearing elements */
   if(anim){
-    ng.filter(d=>d.data.first_date===di)
-      .attr('transform',d=>`translate(${d.x},${d.y}) scale(0)`)
-      .transition().duration(400).ease(d3.easeBackOut.overshoot(1.5))
-      .attr('transform',d=>`translate(${d.x},${d.y}) scale(1)`);
-    ng.filter(d=>d.data.has_dp&&d.data.dp_first_date===di)
-      .select('.dp')
+    leafG.filter(d=>d.data.first_date===di).select('.leaflet')
+      .attr('transform','scale(0.05)')
+      .transition().duration(560).ease(d3.easeElastic.period(0.45))
+      .attr('transform','scale(0.72)');
+
+    nonCrown.filter(d=>d.data.has_dp&&d.data.dp_first_date===di).select('.dp-ring')
       .attr('r',0)
       .transition().duration(400).delay(100).ease(d3.easeBackOut)
       .attr('r',7);
   }
-
-  // Stats
-  const dps=hier.descendants().filter(d=>d.data.has_dp);
-  document.getElementById('st2').textContent=dps.length;
-  document.getElementById('sv').textContent=dps.filter(d=>d.data.dp_first_date<=di).length;
-  document.getElementById('sn').textContent=dps.filter(d=>d.data.dp_first_date===di).length;
 }
 
-// ── Table ──────────────────────────────────────────────────────
-function updateTable(){
-  const date=DATA.dates[di];
-  const prevSet=new Set();
-  DATA.dates.slice(0,di).forEach(d=>(DATA.codes_by_date[d]||[]).forEach(c=>prevSet.add(c)));
-  const today=DATA.codes_by_date[date]||[];
-  const meas=DATA.timeline_by_date[date]||{};
-  const newCs=today.filter(c=>!prevSet.has(c));
-  const oldCs=today.filter(c=>prevSet.has(c));
-  const rows=[...newCs,...oldCs].map(code=>{
-    const m=meas[code];
-    const cls=newCs.includes(code)?'r-new':'r-seen';
-    const sl=m&&m.stolon_length!=null?m.stolon_length.toFixed(1):'—';
-    return`<tr class="${cls}"><td>${code}</td>`+
-      `<td>${m?m.sec_stolon:'—'}</td><td>${m?m.sec_daughters:'—'}</td>`+
-      `<td>${m?m.ter_stolon:'—'}</td><td>${m?m.ter_daughters:'—'}</td>`+
-      `<td>${sl}</td></tr>`;
-  });
-  document.getElementById('tbody').innerHTML=rows.join('');
-}
-
-// ── Controls UI ────────────────────────────────────────────────
+/* ── UI ───────────────────────────────────────────────────────── */
 function updateUI(){
   const date=DATA.dates[di];
-  const fmt=new Date(date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+  const fmt=fmtDate(date);
   document.getElementById('date-badge').textContent=fmt;
   const n=DATA.dates.length;
   document.getElementById('cnt').textContent=`${di+1} / ${n}`;
   const pct=n>1?di/(n-1)*100:0;
   document.getElementById('prog-fill').style.width=pct+'%';
   document.getElementById('prog-thumb').style.left=pct+'%';
+  const t=document.getElementById('prog-track');
+  t.setAttribute('aria-valuenow',di);
+  t.setAttribute('aria-valuemax',n-1);
+  t.setAttribute('aria-valuetext',fmt);
 }
 
 function goTo(i,anim){
   di=Math.max(0,Math.min(DATA.dates.length-1,i));
-  updateUI();render(!!anim);updateTable();
+  updateUI();render(!!anim);
 }
 
 function startPlay(){
   playing=true;
-  document.getElementById('b-play').textContent='⏸ Pause';
-  document.getElementById('b-play').classList.add('primary');
+  const b=document.getElementById('b-play');
+  b.textContent='\u23f8 Pause';b.setAttribute('aria-label','Pause');b.classList.add('primary');
   if(di>=DATA.dates.length-1)di=-1;
   tmr=setInterval(()=>{
-    if(di<DATA.dates.length-1){goTo(di+1,true);}else stopPlay();
+    if(di<DATA.dates.length-1)goTo(di+1,true); else stopPlay();
   },IV);
 }
+
 function stopPlay(){
   playing=false;
-  document.getElementById('b-play').textContent='▶ Play';
+  const b=document.getElementById('b-play');
+  b.textContent='\u25b6 Play';b.setAttribute('aria-label','Play');b.classList.remove('primary');
   if(tmr){clearInterval(tmr);tmr=null;}
 }
 
+/* ── Export SVG ───────────────────────────────────────────────── */
+function exportSVG(){
+  const el=document.getElementById('tree-svg');
+  const clone=el.cloneNode(true);
+  clone.setAttribute('xmlns','http://www.w3.org/2000/svg');
+  const s=document.createElement('style');
+  s.textContent='.link{fill:none;stroke-linecap:round}.leaflet{stroke-width:0.9px}.crown-circle{stroke-width:2px}.dp-ring{fill:none;stroke-width:2px}';
+  clone.insertBefore(s,clone.firstChild);
+  const blob=new Blob([new XMLSerializer().serializeToString(clone)],{type:'image/svg+xml'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download='plant_architecture.svg';a.click();
+  URL.revokeObjectURL(url);
+}
+
+/* ── Events ───────────────────────────────────────────────────── */
 document.getElementById('b-prev').onclick=()=>{stopPlay();goTo(di-1,true);};
 document.getElementById('b-next').onclick=()=>{stopPlay();goTo(di+1,true);};
 document.getElementById('b-play').onclick=()=>playing?stopPlay():startPlay();
-document.getElementById('b-fit').onclick=()=>fitView(true);
-document.getElementById('bzi').onclick=()=>svg.transition().duration(300).call(zoom.scaleBy,1.5);
-document.getElementById('bzo').onclick=()=>svg.transition().duration(300).call(zoom.scaleBy,0.67);
+document.getElementById('b-export').onclick=exportSVG;
 
 document.getElementById('prog-track').addEventListener('click',e=>{
   const r=e.currentTarget.getBoundingClientRect();
   stopPlay();goTo(Math.round((e.clientX-r.left)/r.width*(DATA.dates.length-1)),true);
 });
 
-// ── Init ───────────────────────────────────────────────────────
+/* Keyboard: arrow keys on progress track */
+document.getElementById('prog-track').addEventListener('keydown',e=>{
+  if(e.key==='ArrowLeft'){stopPlay();goTo(di-1,true);e.preventDefault();}
+  if(e.key==='ArrowRight'){stopPlay();goTo(di+1,true);e.preventDefault();}
+});
+
+/* Global keyboard: arrows + space */
+document.addEventListener('keydown',e=>{
+  const tag=e.target.tagName;
+  if(tag==='INPUT'||tag==='BUTTON')return;
+  if(e.key==='ArrowLeft'){stopPlay();goTo(di-1,true);e.preventDefault();}
+  else if(e.key==='ArrowRight'){stopPlay();goTo(di+1,true);e.preventDefault();}
+  else if(e.key===' '){playing?stopPlay():startPlay();e.preventDefault();}
+});
+
+window.addEventListener('resize',fitView);
+
 goTo(0,false);
 </script>
 </body>
