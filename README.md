@@ -113,7 +113,16 @@ Select a trait and a date for a full statistical comparison:
 - **Champion table** — each cultivar's season trend (↑↓→), peak value and date, and champion win % (% of significant dates where CLD = "a")
 
 ### 5. Plant Animation
-A scroll-driven SVG schematic of a strawberry plant drawn from actual trait values. Crown size, stolon count/length, daughter plant positions, and flower count are all anchored to measurements. Play/pause animates through measurement dates to show how plant architecture changes over the season.
+A date-driven SVG schematic of a strawberry plant's stolon network, grown node-by-node from actual Worksheet 1 and Worksheet 3 measurements. Play/pause steps through measurement dates; a collapsible data table below the animation shows per-plant measurements for the current date.
+
+**Implementation — live dashboard** (`src/plant_arch.py`):
+- **D3.js v7** — SVG tree layout (`d3.hierarchy`, `d3.tree`), animated Bézier stolon links, entrance transitions, tooltip rendering
+- **Python / Dash** — builds the full D3 hierarchy from Excel data server-side and delivers a self-contained HTML + JSON payload via `html.Iframe(srcDoc=...)`
+
+**Implementation — offline GIF generator** (`plant_animation/generate_animations.py`):
+- **matplotlib** — renders the final complete scene once at full resolution
+- **Pillow (PIL)** — composites frames incrementally onto a persistent canvas and saves as an animated GIF (~12 fps)
+- **NumPy / pandas** — coordinate layout calculations and Excel ingestion
 
 ### 6. Export & Methods
 Download four CSV files (`pheno4_clean`, `pheno4_long`, `pheno4_stats`, `pheno4_season`) and view full statistical methods documentation with citations.

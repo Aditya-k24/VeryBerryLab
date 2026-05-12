@@ -439,11 +439,12 @@ _JS_TEMPLATE = """\
 <head>
 <meta charset="utf-8">
 <title>Strawberry Plant Architecture</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 <script src="https://d3js.org/d3.v7.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden;
-  font-family:'Segoe UI',Tahoma,Geneva,Verdana,-apple-system,sans-serif}
+  font-family:'Inter','Segoe UI',system-ui,sans-serif}
 body{background:#f4f1ea;color:#2c3e50;display:flex;flex-direction:column}
 
 #ctrl{
@@ -481,7 +482,12 @@ body{background:#f4f1ea;color:#2c3e50;display:flex;flex-direction:column}
   box-shadow:0 0 0 2px rgba(93,138,62,.3);
 }
 #cnt{font-size:11px;color:#6b7d62;white-space:nowrap}
-#hint{font-size:10px;color:#a8b0a0;white-space:nowrap}
+#cv-badge{
+  font-size:12px;font-weight:700;color:#3e5c29;
+  background:#ecf4e8;border:1px solid #c5d9b8;
+  padding:4px 12px;border-radius:8px;white-space:nowrap;letter-spacing:.01em;
+}
+#date-range{font-size:10px;color:#8a9e7e;white-space:nowrap;align-self:center;}
 
 #svg-wrap{
   flex:1;min-height:0;position:relative;
@@ -517,6 +523,26 @@ svg{width:100%;height:100%;min-height:400px;display:block;cursor:default}
   pointer-events:none;font-size:10px;color:#5c6b52;max-width:96%;
   box-shadow:0 1px 3px rgba(0,0,0,.06);
 }
+
+#tbl-wrap{
+  flex-shrink:0;overflow:hidden;border-top:1px solid #e8e3d9;
+  background:#faf8f5;max-height:0;transition:max-height .35s ease;
+}
+#tbl-wrap.open{max-height:300px;}
+#tbl-scroll{overflow-y:auto;max-height:280px;padding:8px 16px 12px;}
+#data-tbl{width:100%;border-collapse:collapse;}
+#data-tbl th{
+  position:sticky;top:0;background:#f0ebe3;padding:5px 8px;
+  text-align:left;font-weight:600;border-bottom:1px solid #d4cfc4;
+  white-space:nowrap;color:#5c6b52;font-size:10px;
+}
+#data-tbl td{
+  padding:4px 8px;border-bottom:1px solid #f0ebe3;
+  white-space:nowrap;font-size:11px;color:#2c3e50;
+}
+#data-tbl tr:hover td{background:#f4f1ea;}
+#data-tbl td:first-child{font-weight:600;color:#3e5c29;}
+#tbl-empty{padding:20px;text-align:center;color:#a8b0a0;font-size:11px;display:none;}
 .lg{display:flex;align-items:center;gap:5px}
 .lg-sw{width:18px;height:4px;border-radius:2px}
 .lg-lf{width:10px;height:13px;background:#7bb242;border-radius:50%;border:1px solid #4a752c}
@@ -527,9 +553,10 @@ svg{width:100%;height:100%;min-height:400px;display:block;cursor:default}
 <body>
 
 <div id="ctrl" role="toolbar" aria-label="Playback controls">
-  <button class="btn" id="b-prev" aria-label="Previous date">&#9664; Prev</button>
+  <span id="cv-badge">__CULTIVAR__ &middot; M__MOTHER__</span>
+  <button class="btn" id="b-prev" aria-label="Previous date">&#9664;</button>
   <button class="btn primary" id="b-play" aria-label="Play">&#9654; Play</button>
-  <button class="btn" id="b-next" aria-label="Next date">Next &#9654;</button>
+  <button class="btn" id="b-next" aria-label="Next date">&#9654;</button>
   <span id="date-badge" role="status" aria-live="polite">—</span>
   <div id="prog-track" role="slider" aria-label="Date timeline"
        aria-valuemin="0" aria-valuenow="0" tabindex="0">
@@ -537,8 +564,9 @@ svg{width:100%;height:100%;min-height:400px;display:block;cursor:default}
     <div id="prog-thumb"></div>
   </div>
   <span id="cnt"></span>
-  <button class="btn" id="b-export" aria-label="Export SVG">&#8681; SVG</button>
-  <span id="hint">&#8592; &#8594; Space</span>
+  <span id="date-range"></span>
+  <button class="btn" id="b-export" aria-label="Export SVG" style="margin-left:auto">&#8681; SVG</button>
+  <button class="btn" id="b-tbl" aria-expanded="false">&#9660; Data</button>
 </div>
 
 <div id="svg-wrap">
@@ -551,6 +579,13 @@ svg{width:100%;height:100%;min-height:400px;display:block;cursor:default}
     <div class="lg"><div class="lg-lf"></div>Node / leaf</div>
     <div class="lg"><div class="lg-dp"></div>Daughter plant</div>
     <div class="lg"><div class="lg-cr"></div>Crown</div>
+  </div>
+</div>
+
+<div id="tbl-wrap" role="region" aria-label="Measurement data table">
+  <div id="tbl-scroll">
+    <table id="data-tbl"></table>
+    <div id="tbl-empty">No measurements recorded for this date.</div>
   </div>
 </div>
 
@@ -578,7 +613,7 @@ const TRI=
   "M0,0 C1,2 11,-2 15,5 C13,13 4,11 0,0 Z";
 
 let di=0,playing=false,tmr=null;
-const IV=2200;
+const IV=1600;
 
 const wrap=document.getElementById('svg-wrap');
 const W=wrap.clientWidth||900;
@@ -781,7 +816,62 @@ function updateUI(){
   t.setAttribute('aria-valuenow',di);
   t.setAttribute('aria-valuemax',n-1);
   t.setAttribute('aria-valuetext',fmt);
+  if(tblOpen)buildTable();
 }
+
+/* ── Data Table ─────────────────────────────────────────────────── */
+let tblOpen=false;
+
+function buildTable(){
+  const date=DATA.dates[di];
+  const recs=(DATA.timeline_by_date&&DATA.timeline_by_date[date])||{};
+  const codes=Object.keys(recs).sort();
+  const tbl=document.getElementById('data-tbl');
+  const empty=document.getElementById('tbl-empty');
+  if(!codes.length){
+    tbl.innerHTML='';tbl.style.display='none';
+    empty.style.display='block';
+    empty.textContent='No measurements recorded for '+fmtDate(date)+'.';
+    return;
+  }
+  tbl.style.display='';empty.style.display='none';
+  const COLS=[
+    ['code','Code'],
+    ['stolon_length','Stolon Length (cm)'],
+    ['sec_stolon','Sec Stolons'],
+    ['sec_daughters','Sec Daughters'],
+    ['ter_stolon','Ter Stolons'],
+    ['ter_daughters','Ter Daughters'],
+    ['quart_stolon','Qrt Stolons'],
+    ['quart_daughters','Qrt Daughters'],
+  ];
+  /* only show columns that have at least one non-zero value */
+  const active=COLS.filter(([k])=>k==='code'||codes.some(c=>{
+    const v=recs[c][k];return v!=null&&v!==0;
+  }));
+  let h='<thead><tr>'+active.map(([,l])=>`<th>${l}</th>`).join('')+'</tr></thead><tbody>';
+  for(const code of codes){
+    const r=recs[code];
+    h+='<tr>'+active.map(([k])=>{
+      if(k==='code')return`<td>${code}</td>`;
+      const v=r[k];
+      if(v==null)return'<td style="color:#ccc">—</td>';
+      if(typeof v==='number')return`<td>${Number.isInteger(v)?v:v.toFixed(1)}</td>`;
+      return`<td>${v}</td>`;
+    }).join('')+'</tr>';
+  }
+  h+='</tbody>';
+  tbl.innerHTML=h;
+}
+
+document.getElementById('b-tbl').onclick=()=>{
+  tblOpen=!tblOpen;
+  document.getElementById('tbl-wrap').classList.toggle('open',tblOpen);
+  const btn=document.getElementById('b-tbl');
+  btn.textContent=(tblOpen?'\u25b2':'\u25bc')+' Data Table';
+  btn.setAttribute('aria-expanded',String(tblOpen));
+  if(tblOpen)buildTable();
+};
 
 function goTo(i,anim){
   di=Math.max(0,Math.min(DATA.dates.length-1,i));
@@ -848,6 +938,26 @@ document.addEventListener('keydown',e=>{
 
 window.addEventListener('resize',fitView);
 
+/* Date range label */
+if(DATA.dates.length>1){
+  const dr=document.getElementById('date-range');
+  dr.textContent=fmtDate(DATA.dates[0])+' → '+fmtDate(DATA.dates[DATA.dates.length-1]);
+}
+
+/* Tick marks on progress bar — one per date */
+const pt=document.getElementById('prog-track');
+if(DATA.dates.length>2){
+  DATA.dates.forEach((_,i)=>{
+    if(i===0||i===DATA.dates.length-1)return;
+    const p=i/(DATA.dates.length-1)*100;
+    const t=document.createElement('div');
+    t.style.cssText=`position:absolute;left:${p}%;top:50%;`+
+      `transform:translate(-50%,-50%);width:1.5px;height:5px;`+
+      `background:rgba(93,138,62,.35);border-radius:1px;pointer-events:none`;
+    pt.appendChild(t);
+  });
+}
+
 goTo(0,false);
 </script>
 </body>
@@ -903,7 +1013,12 @@ def build_js_html(plant: Plant,
         "timeline_by_date": timeline_by_date,
     }
 
-    return _JS_TEMPLATE.replace("__DATA__", json.dumps(payload, separators=(",", ":")))
+    return (
+        _JS_TEMPLATE
+        .replace("__DATA__",     json.dumps(payload, separators=(",", ":")))
+        .replace("__CULTIVAR__", plant.cultivar)
+        .replace("__MOTHER__",   str(mother_id))
+    )
 
 
 def plant_summary(plant: Plant, mother_id: Optional[int] = None) -> dict:
