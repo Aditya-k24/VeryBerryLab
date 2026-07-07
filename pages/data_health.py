@@ -13,6 +13,7 @@ import plotly.graph_objects as go
 from dash import Input, Output, callback, dcc, html
 
 import src.data_cache as cache
+from src.ui import GRAPH_CONFIG
 from src.etl import BATCH_A, BATCH_B, TRAIT_COLS, TRAIT_LABELS
 
 dash.register_page(__name__, path="/", name="Data Health", order=0)
@@ -132,7 +133,7 @@ layout = html.Div([
         html.Div(className="card", children=[
             html.H3("Measurement Timeline", className="card-title"),
             html.P("Each diamond = one measurement date.", className="card-subtitle"),
-            dcc.Graph(id="dh-timeline", config={"displayModeBar": False}),
+            dcc.Graph(id="dh-timeline", config=GRAPH_CONFIG),
         ]),
 
         html.Div(className="card", children=[
@@ -154,7 +155,7 @@ layout = html.Div([
                 html.Span(className="leg-dot", style={"background": "#e8e8e8"}),
                 html.Span("Not scheduled", className="leg-label"),
             ]),
-            dcc.Graph(id="dh-completeness", config={"displayModeBar": False}),
+            dcc.Graph(id="dh-completeness", config=GRAPH_CONFIG),
         ]),
 
         html.Div(className="card", children=[

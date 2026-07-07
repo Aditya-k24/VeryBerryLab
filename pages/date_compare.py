@@ -11,6 +11,7 @@ import plotly.graph_objects as go
 from dash import Input, Output, callback, dcc, html
 
 import src.data_cache as cache
+from src.ui import GRAPH_CONFIG
 from src.etl import BATCH_A, BATCH_B, TRAIT_COLS, TRAIT_LABELS
 from src.stats import sig_label
 
@@ -212,7 +213,7 @@ layout = html.Div([
                 html.H3("Cultivar Comparison", className="card-title"),
                 html.P("Diamond = mean · Bar = ±SE · Dots = replicates · Letter = CLD group",
                        className="card-subtitle"),
-                dcc.Graph(id="dc-plot", config={"displayModeBar": "hover"}),
+                dcc.Graph(id="dc-plot", config=GRAPH_CONFIG),
             ]),
             html.Div(className="dc-stats card", children=[
                 html.H3("Statistics", className="card-title"),

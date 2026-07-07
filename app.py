@@ -35,6 +35,7 @@ NAV = [
     {"label": "Season Summary",   "href": "/season-summary"},
     {"label": "Plant Animation",  "href": "/plant-animation"},
     {"label": "Export & Methods", "href": "/export"},
+    {"label": "Cross-Batch",      "href": "/cross-batch"},
 ]
 
 app.layout = html.Div(className="app-wrapper", children=[
@@ -57,8 +58,8 @@ app.layout = html.Div(className="app-wrapper", children=[
             for i, item in enumerate(NAV)
         ]),
         html.Div(className="sidebar-footer", children=[
-            html.Span("Pheno 4 · 2025",    className="sidebar-meta"),
-            html.Span("11 cvs · 12 dates", className="sidebar-meta"),
+            html.Span("Pheno 1–5 · 2024–2026", className="sidebar-meta"),
+            html.Span("13 cvs · multi-batch",  className="sidebar-meta"),
         ]),
     ]),
 

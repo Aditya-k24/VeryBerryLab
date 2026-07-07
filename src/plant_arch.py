@@ -1036,6 +1036,38 @@ def plant_summary(plant: Plant, mother_id: Optional[int] = None) -> dict:
     }
 
 
+def _count_hierarchy(node: dict) -> tuple[int, int]:
+    """Count (daughter plants, distinct stolons) actually present in a rendered
+    D3 hierarchy subtree."""
+    dp = 0
+    stolons: set = set()
+    stack = [node]
+    while stack:
+        n = stack.pop()
+        if n.get("has_dp"):
+            dp += 1
+        if n.get("type") == "node":
+            stolons.add("_".join(n["id"].split("_")[:3]))
+        stack.extend(n.get("children", []))
+    return dp, len(stolons)
+
+
+def validate_render(plant: Plant, mother_id: int,
+                    code_first_date: dict, n_dates: int) -> dict:
+    """Confirm the rendered hierarchy for one mother reproduces the parsed
+    daughter/stolon counts exactly. Returns a dict the UI can display; `ok`
+    is False if the animation would show a different structure than the data.
+    """
+    hier = _to_d3_hierarchy(plant, mother_id, code_first_date, n_dates)
+    r_dp, r_st = _count_hierarchy(hier)
+    p_dp, p_st = plant.dp_count(mother_id), plant.stolon_count(mother_id)
+    return {
+        "ok":               (r_dp == p_dp and r_st == p_st),
+        "parsed_daughters": p_dp, "rendered_daughters": r_dp,
+        "parsed_stolons":   p_st, "rendered_stolons":   r_st,
+    }
+
+
 def _empty_html(msg: str = "No data") -> str:
     return (
         "<!DOCTYPE html><html><body style='"

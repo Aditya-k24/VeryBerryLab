@@ -62,7 +62,10 @@ def _cld(means: dict[str, float], posthoc: pd.DataFrame, alpha: float) -> dict[s
     if len(cvs) == 1:
         return {cvs[0]: "a"}
 
-    sorted_cvs = sorted(cvs, key=lambda c: means.get(c, 0.0))
+    # Descending so letter 'a' marks the HIGHEST mean (best) group — the whole
+    # app treats 'a' as the champion (star marker, champion %). Ascending here
+    # silently made 'a' the worst group.
+    sorted_cvs = sorted(cvs, key=lambda c: means.get(c, 0.0), reverse=True)
     idx = {c: i for i, c in enumerate(sorted_cvs)}
     n   = len(sorted_cvs)
 

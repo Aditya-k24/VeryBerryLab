@@ -55,10 +55,15 @@ METHODS = [
      "Peak value = cultivar max mean across dates (higher-is-better traits)."),
 
     ("Plant animation",
-     "Schematic figure only — crown radius ∝ crown_diameter_mm; "
-     "stolon count/length ∝ n_stolon_primary / stolon_length_primary_cm; "
-     "secondary stolons, daughter plants, and flowers scaled to their trait values. "
-     "Stolon angles evenly distributed for visual clarity."),
+     "Stolon tree topology is parsed from Worksheet 3 positional codes "
+     "(e.g. 1.1.2.1 = mother 1 → primary stolon 1 → node 2 → daughter 1); "
+     "daughter plants and branches render at their encoded parent stolon/node "
+     "positions. Worksheet 1 repeated measurements drive the date-by-date "
+     "growth timeline: each daughter appears on the first date its code is "
+     "recorded. No nodes are invented and no biology is interpolated. Rendered "
+     "daughter/stolon counts are validated against the parsed structure per "
+     "mother plant; internode depths use recorded lengths where present "
+     "(default 2.0 cm otherwise)."),
 ]
 
 

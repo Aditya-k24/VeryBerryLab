@@ -12,6 +12,7 @@ import plotly.graph_objects as go
 from dash import Input, Output, callback, dcc, html
 
 import src.data_cache as cache
+from src.ui import GRAPH_CONFIG
 from src.etl import BATCH_A, BATCH_B, TRAIT_COLS, TRAIT_LABELS
 from src.stats import sig_label
 
@@ -149,7 +150,7 @@ layout = html.Div([
             html.P("Colour intensity = ε². Annotations = significance stars. "
                    "Dotted line = Batch B boundary.",
                    className="card-subtitle"),
-            dcc.Graph(id="ss-heatmap", config={"displayModeBar": "hover"}),
+            dcc.Graph(id="ss-heatmap", config=GRAPH_CONFIG),
         ]),
 
         html.Div(className="card", children=[

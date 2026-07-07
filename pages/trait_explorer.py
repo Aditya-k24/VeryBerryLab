@@ -13,6 +13,7 @@ from dash import Input, Output, callback, dcc, html
 from plotly.subplots import make_subplots
 
 import src.data_cache as cache
+from src.ui import GRAPH_CONFIG
 from src.etl import BATCH_A, BATCH_B, TRAIT_COLS, TRAIT_LABELS
 
 dash.register_page(__name__, path="/trait-explorer", name="Trait Explorer", order=1)
@@ -197,14 +198,14 @@ layout = html.Div([
 
         html.Div(className="card", children=[
             html.H3("Time Series — mean ± SE", className="card-title"),
-            dcc.Graph(id="te-ts", config={"displayModeBar": "hover"}),
+            dcc.Graph(id="te-ts", config=GRAPH_CONFIG),
         ]),
 
         html.Div(className="card", children=[
             html.H3("Distribution by Date", className="card-title"),
             html.P("Diamond = cultivar mean. Each dot = one replicate plant.",
                    className="card-subtitle"),
-            dcc.Graph(id="te-strip", config={"displayModeBar": "hover"}),
+            dcc.Graph(id="te-strip", config=GRAPH_CONFIG),
         ]),
     ]),
 ])

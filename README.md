@@ -27,7 +27,15 @@ python3 app.py
 
 Open **http://localhost:5001**
 
-> The app expects the source Excel workbook at `../Phenotyping Data with Aditya 1_27_2026/Pheno Batch 4/Phenotyping 4 Worksheet 2.xlsx` (relative to this folder). Place the file there before running.
+> The app reads the four workbooks from `data/` in this folder
+> (`Phenotyping 4 Worksheet 1/2.xlsx`, `Pheno 4 Worksheet 3.xlsx`,
+> `Pheno Merged Data.xlsx`). They ship with the repo.
+
+Run the tests:
+
+```bash
+pytest -q
+```
 
 ---
 

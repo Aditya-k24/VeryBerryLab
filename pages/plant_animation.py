@@ -13,7 +13,7 @@ import dash
 from dash import Input, Output, callback, dcc, html
 
 import src.data_cache as cache
-from src.plant_arch import build_js_html, plant_summary, _empty_html
+from src.plant_arch import build_js_html, plant_summary, validate_render, _empty_html
 
 dash.register_page(__name__, path="/plant-animation", name="Plant Animation", order=4)
 
@@ -140,8 +140,19 @@ def update_animation(cultivar, mother_id):
     s = plant_summary(plant, mid)
     dates = ws1_cv.get("dates", [])
     n_codes = sum(len(ws1_cv.get("codes_by_date", {}).get(d, [])) for d in dates)
+
+    # Validate the rendered tree reproduces parsed counts exactly
+    code_first_date: dict = {}
+    for idx, d in enumerate(dates):
+        for code in ws1_cv.get("codes_by_date", {}).get(d, []):
+            code_first_date.setdefault(code, idx)
+    v = validate_render(plant, mid, code_first_date, len(dates))
+    check = ("✓ render matches data" if v["ok"] else
+             f"⚠ render/data mismatch (dp {v['rendered_daughters']}/{v['parsed_daughters']}, "
+             f"stolons {v['rendered_stolons']}/{v['parsed_stolons']})")
+
     status = (
         f"M{mid}: {s['daughters']} DPs · {s['stolons']} stolons · "
-        f"{len(dates)} dates · {n_codes} plant-date observations"
+        f"{len(dates)} dates · {n_codes} plant-date observations · {check}"
     )
     return html_str, status
