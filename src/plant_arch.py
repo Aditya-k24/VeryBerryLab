@@ -496,11 +496,13 @@ body{background:#f4f1ea;color:#2c3e50;display:flex;flex-direction:column}
 }
 svg{width:100%;height:100%;min-height:400px;display:block;cursor:default}
 
-.link{fill:none;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
-.leaflet{stroke-width:0.9px;pointer-events:none}
-.crown-circle{stroke-width:2px;pointer-events:none}
-.crown-text{font-size:11px;font-weight:800;fill:#fff;pointer-events:none}
+.runner{fill:none;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+.leaflet{stroke-width:0.8px;pointer-events:none}
+.crown-core{pointer-events:none}
+.crown-text{font-size:10px;font-weight:800;fill:#fff;pointer-events:none}
+.stem-node{pointer-events:none}
 .dp-ring{fill:none;stroke-width:2px;pointer-events:none}
+.plantlet{pointer-events:none}
 .hit-area{fill:transparent;cursor:pointer;stroke:none}
 
 #tooltip{
@@ -545,8 +547,8 @@ svg{width:100%;height:100%;min-height:400px;display:block;cursor:default}
 #tbl-empty{padding:20px;text-align:center;color:#a8b0a0;font-size:11px;display:none;}
 .lg{display:flex;align-items:center;gap:5px}
 .lg-sw{width:18px;height:4px;border-radius:2px}
-.lg-lf{width:10px;height:13px;background:#7bb242;border-radius:50%;border:1px solid #4a752c}
-.lg-cr{width:9px;height:9px;border-radius:50%;background:#3e5c29;border:1.5px solid #c8e063}
+.lg-lf{width:11px;height:11px;background:#57a83f;border-radius:50% 50% 50% 0;transform:rotate(45deg);border:1px solid #2f6b25}
+.lg-cr{width:10px;height:10px;border-radius:50%;background:#7a4a2a;border:1.5px solid #c8e063}
 .lg-dp{width:9px;height:9px;border-radius:50%;border:2px solid #E69F00}
 </style>
 </head>
@@ -572,13 +574,13 @@ svg{width:100%;height:100%;min-height:400px;display:block;cursor:default}
 <div id="svg-wrap">
   <svg id="tree-svg" aria-label="Strawberry plant growth animation" role="img"></svg>
   <div id="legend">
-    <div class="lg"><div class="lg-sw" style="background:#009E73"></div>Primary</div>
-    <div class="lg"><div class="lg-sw" style="background:#0072B2"></div>Secondary</div>
-    <div class="lg"><div class="lg-sw" style="background:#D55E00"></div>Tertiary</div>
-    <div class="lg"><div class="lg-sw" style="background:#CC79A7"></div>Quaternary+</div>
-    <div class="lg"><div class="lg-lf"></div>Node / leaf</div>
-    <div class="lg"><div class="lg-dp"></div>Daughter plant</div>
-    <div class="lg"><div class="lg-cr"></div>Crown</div>
+    <div class="lg"><div class="lg-sw" style="background:#5f7d33"></div>Primary runner</div>
+    <div class="lg"><div class="lg-sw" style="background:#7f9a54"></div>Secondary</div>
+    <div class="lg"><div class="lg-sw" style="background:#8fa768"></div>Tertiary</div>
+    <div class="lg"><div class="lg-sw" style="background:#9fb37d"></div>Quaternary+</div>
+    <div class="lg"><div class="lg-cr"></div>Mother crown</div>
+    <div class="lg"><div class="lg-lf"></div>Daughter plantlet</div>
+    <div class="lg"><div class="lg-dp"></div>New this date</div>
   </div>
 </div>
 
@@ -594,23 +596,35 @@ svg{width:100%;height:100%;min-height:400px;display:block;cursor:default}
 <script>
 const DATA=__DATA__;
 
-/* Okabe-Ito colorblind-safe palette indexed by stolon order */
-const OCOL=['#4a7c59','#009E73','#0072B2','#D55E00','#CC79A7'];
-const OWID=[6,4.2,3.2,2.4,1.8];
-const LFIL=['#6aaa3e','#7bb242','#5a9de0','#e87a3e','#d982c0'];
-const LSTK=['#4a752c','#4a752c','#3870b0','#b05020','#9a5090'];
+/* Strawberry runner (stem) greens — lighter as stolon order increases */
+const OCOL=['#5f7d33','#6f8c43','#7f9a54','#8fa768','#9fb37d'];
+const OWID=[5,3.6,2.6,1.9,1.4];
+/* Leaf greens by order (subtle variation) */
+const LFIL=['#4f9e3a','#57a83f','#63b24b','#6fbb58','#7cc466'];
+const LSTK=['#2f6b25','#2f6b25','#357a2a','#3a852f','#409034'];
 
 function oc(o){return OCOL[Math.min(o,4)];}
 function ow(o){return OWID[Math.min(o,4)];}
 function lf(o){return LFIL[Math.min(o,4)];}
 function ls(o){return LSTK[Math.min(o,4)];}
 
-/* Trifoliate leaf path: top leaflet + lower-left + lower-right
-   All three leaflets meet at (0,0) for clean scaling. */
+/* Trifoliate strawberry leaf: top leaflet + lower-left + lower-right,
+   all three leaflets meeting at (0,0) for clean scaling. */
 const TRI=
   "M0,0 C-3,-4 -4,-13 0,-19 C4,-13 3,-4 0,0 Z"+
   "M0,0 C-1,2 -11,-2 -15,5 C-13,13 -4,11 0,0 Z"+
   "M0,0 C1,2 11,-2 15,5 C13,13 4,11 0,0 Z";
+
+/* A rosette: n trifoliate leaves radiating from a point (crown/plantlet). */
+function rosette(sel,n,s,fill,stroke){
+  const g=sel.append('g').attr('class','rosette');
+  for(let i=0;i<n;i++){
+    g.append('path').attr('class','leaflet')
+      .attr('d',TRI).attr('fill',fill).attr('stroke',stroke)
+      .attr('transform',`rotate(${i*360/n}) translate(0,-3) scale(${s})`);
+  }
+  return g;
+}
 
 let di=0,playing=false,tmr=null;
 const IV=1600;
@@ -634,65 +648,74 @@ fm.append('feMergeNode').attr('in','SourceGraphic');
 
 const mainG=svg.append('g');
 
-/* Build D3 hierarchy & layout */
+/* Build D3 hierarchy & RADIAL layout — mother crown at centre, runners
+   spreading outward across the ground like a real strawberry plant. */
 const hier=d3.hierarchy(DATA.tree);
-const nLeaves=hier.leaves().length;
-const DX=Math.max(18,Math.min(38,(W-100)/Math.max(nLeaves,1)));
-d3.tree().nodeSize([DX,88])(hier);
+const R=Math.min(W,H)/2-64;
+d3.tree().size([2*Math.PI,R])
+  .separation((a,b)=>(a.parent===b.parent?1:1.7)/Math.max(a.depth,1))(hier);
 
-/* Override y with actual internode depth_cm for biological accuracy */
-const maxD=Math.max(...hier.descendants().map(d=>d.data.depth_cm||0));
-if(maxD>0){
-  const treeH=(H-100)*0.88;
-  hier.each(d=>{d.y=52+(d.data.depth_cm/maxD)*treeH;});
-}
+/* Radius from topological depth (each runner step = one ring outward) — an
+   even, readable spread; absolute internode cm stays in the tooltip. */
+hier.each(d=>{ d.r=d.y; });
+hier.each(d=>{ const p=d3.pointRadial(d.x,d.r); d.px=p[0]; d.py=p[1]; });
 
-/* Curved Bézier stolon links, colored by stolon order */
-const lgen=d3.linkVertical().x(d=>d.x).y(d=>d.y);
+/* Runners (radial links), coloured & tapered by stolon order */
+const lgen=d3.linkRadial().angle(d=>d.x).radius(d=>d.r);
 const linkG=mainG.append('g');
 const links=linkG.selectAll('path')
   .data(hier.links())
   .join('path')
-  .attr('class','link')
+  .attr('class','runner')
   .attr('d',lgen)
   .attr('stroke',d=>oc(d.target.data.order))
   .attr('stroke-width',d=>ow(d.target.data.order))
-  .attr('opacity',0.04);
+  .attr('opacity',0);
+/* Prep the grow-outward draw: dash each runner by its own length */
+links.each(function(d){ const L=this.getTotalLength()||1; d._L=L;
+  d3.select(this).attr('stroke-dasharray',L).attr('stroke-dashoffset',L); });
 
-/* Node groups */
+/* Node groups at radial positions */
 const nodeG=mainG.append('g');
 const ng=nodeG.selectAll('g')
   .data(hier.descendants())
   .join('g')
-  .attr('transform',d=>`translate(${d.x},${d.y})`);
+  .attr('transform',d=>`translate(${d.px},${d.py})`);
 
-/* Crown nodes */
+/* Mother crown — full leaf rosette + woody crown core + label */
 ng.filter(d=>d.data.type==='crown').each(function(d){
   const g=d3.select(this);
-  g.append('circle').attr('r',14).attr('class','crown-circle')
-    .attr('fill','#3e5c29').attr('stroke','#c8e063').attr('filter','url(#glow)');
+  rosette(g,7,0.95,'#4f9e3a','#2f6b25');
+  g.append('circle').attr('r',9).attr('class','crown-core')
+    .attr('fill','#7a4a2a').attr('stroke','#c8e063').attr('stroke-width',2)
+    .attr('filter','url(#glow)');
   g.append('text').attr('class','crown-text')
     .attr('text-anchor','middle').attr('dominant-baseline','central')
     .text(d.data.label||'');
 });
 
-/* Trifoliate leaf clusters for non-crown nodes, colored by stolon order */
 const nonCrown=ng.filter(d=>d.data.type!=='crown');
-const leafG=nonCrown.append('g').attr('class','leaf-cluster').attr('opacity',0.04);
-leafG.append('path').attr('class','leaflet')
-  .attr('d',TRI)
-  .attr('fill',d=>lf(d.data.order))
-  .attr('stroke',d=>ls(d.data.order))
-  .attr('transform','scale(0.72)');
 
-/* Daughter plant ring (amber) */
-nonCrown.filter(d=>d.data.has_dp)
-  .append('circle').attr('class','dp-ring')
-  .attr('cx',11).attr('cy',1).attr('r',5)
-  .attr('stroke','#E69F00').attr('opacity',0.04);
+/* Bare internode nodes (no daughter) — small stem node on the runner */
+nonCrown.filter(d=>!d.data.has_dp).append('circle')
+  .attr('class','stem-node').attr('r',2)
+  .attr('fill',d=>oc(d.data.order)).attr('opacity',0);
 
-/* Invisible hit areas for tooltips — cover crown + leaf nodes */
-ng.append('circle').attr('class','hit-area').attr('r',16)
+/* Daughter plantlets — a small rooted rosette (a new little plant) */
+const plantlet=nonCrown.filter(d=>d.data.has_dp).append('g')
+  .attr('class','plantlet').attr('opacity',0);
+plantlet.each(function(d){
+  const g=d3.select(this);
+  rosette(g,5,0.5,lf(d.data.order),ls(d.data.order));
+  g.append('circle').attr('r',3)
+    .attr('fill','#8a5a34').attr('stroke','#e9c46a').attr('stroke-width',1);
+});
+/* Amber "rooted this date" ring around plantlets */
+nonCrown.filter(d=>d.data.has_dp).append('circle').attr('class','dp-ring')
+  .attr('r',9).attr('stroke','#E69F00').attr('opacity',0);
+
+/* Invisible hit areas for tooltips */
+ng.append('circle').attr('class','hit-area').attr('r',13)
   .on('mouseover',showTip)
   .on('mousemove',moveTip)
   .on('mouseout',hideTip);
@@ -760,45 +783,42 @@ function hideTip(){ttEl.style.display='none';}
 
 /* ── Render ───────────────────────────────────────────────────── */
 function render(anim){
-  const dur=anim?480:0;
+  const dur=anim?600:0;
 
-  /* Links: color by stolon order, highlight new arrivals */
+  /* Runners grow outward from the crown (dash draw), fade in on arrival */
   links.transition().duration(dur)
     .attr('opacity',d=>{
       const f=d.target.data.first_date;
-      return f>di?0.04:(f===di?1:0.65);
+      return f>di?0:(f===di?1:0.9);
     })
+    .attr('stroke-dashoffset',d=>d.target.data.first_date>di?d._L:0)
     .attr('stroke-width',d=>{
       const w=ow(d.target.data.order);
-      return d.target.data.first_date===di?w*1.3:w;
+      return d.target.data.first_date===di?w*1.35:w;
     });
 
-  /* Leaf clusters */
-  leafG.transition().duration(dur)
-    .attr('opacity',d=>d.data.first_date>di?0.04:1);
+  /* Bare stem nodes appear with their runner */
+  nonCrown.select('.stem-node').transition().duration(dur)
+    .attr('opacity',d=>d.data.first_date>di?0:0.85);
 
-  leafG.select('.leaflet').transition().duration(dur)
-    .attr('transform',d=>d.data.first_date>di?'scale(0.06)':'scale(0.72)');
+  /* Daughter plantlets unfurl when they root */
+  const pl=nonCrown.select('.plantlet');
+  pl.transition().duration(dur)
+    .attr('opacity',d=>d.data.dp_first_date>di?0:1)
+    .attr('transform',d=>d.data.dp_first_date>di?'scale(0.01)':'scale(1)');
 
-  /* Daughter rings */
-  nonCrown.filter(d=>d.data.has_dp).select('.dp-ring').transition().duration(dur)
-    .attr('r',d=>d.data.dp_first_date===di?7:5)
-    .attr('stroke',d=>d.data.dp_first_date>di?'#e0dcd4':(d.data.dp_first_date===di?'#E69F00':'#c8a000'))
-    .attr('stroke-width',d=>d.data.dp_first_date===di?2.6:2)
-    .attr('opacity',d=>d.data.dp_first_date>di?0.04:1)
+  /* Amber "rooted this date" ring */
+  nonCrown.select('.dp-ring').transition().duration(dur)
+    .attr('opacity',d=>d.data.dp_first_date===di?1:0)
+    .attr('r',d=>d.data.dp_first_date===di?11:9)
     .attr('filter',d=>d.data.dp_first_date===di?'url(#glow)':null);
 
-  /* Entrance animations for newly appearing elements */
+  /* Elastic pop for plantlets rooting this date */
   if(anim){
-    leafG.filter(d=>d.data.first_date===di).select('.leaflet')
+    pl.filter(d=>d.data.dp_first_date===di)
       .attr('transform','scale(0.05)')
-      .transition().duration(560).ease(d3.easeElastic.period(0.45))
-      .attr('transform','scale(0.72)');
-
-    nonCrown.filter(d=>d.data.has_dp&&d.data.dp_first_date===di).select('.dp-ring')
-      .attr('r',0)
-      .transition().duration(400).delay(100).ease(d3.easeBackOut)
-      .attr('r',7);
+      .transition().duration(640).ease(d3.easeElastic.period(0.5))
+      .attr('transform','scale(1)');
   }
 }
 
@@ -901,7 +921,7 @@ function exportSVG(){
   const clone=el.cloneNode(true);
   clone.setAttribute('xmlns','http://www.w3.org/2000/svg');
   const s=document.createElement('style');
-  s.textContent='.link{fill:none;stroke-linecap:round}.leaflet{stroke-width:0.9px}.crown-circle{stroke-width:2px}.dp-ring{fill:none;stroke-width:2px}';
+  s.textContent='.runner{fill:none;stroke-linecap:round}.leaflet{stroke-width:0.8px}.dp-ring{fill:none;stroke-width:2px}';
   clone.insertBefore(s,clone.firstChild);
   const blob=new Blob([new XMLSerializer().serializeToString(clone)],{type:'image/svg+xml'});
   const url=URL.createObjectURL(blob);

@@ -35,9 +35,10 @@ layout = html.Div([
     html.Div(className="page-header", children=[
         html.H1("Plant Growth Animation", className="page-title"),
         html.P(
-            "Top-down stolon network grown date-by-date from Worksheet 1 measurements. "
-            "Tree structure from Worksheet 3. × = node, ○ = daughter plant. "
-            "Amber = new this date.",
+            "Top-down view of the plant spreading across the ground: the mother "
+            "crown sends runners outward, and daughter plantlets root at their "
+            "encoded stolon/node positions. Structure from Worksheet 3, growth "
+            "timeline from Worksheet 1. Amber ring = rooted this date.",
             className="page-subtitle",
         ),
     ]),
