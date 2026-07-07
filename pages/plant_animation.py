@@ -77,24 +77,22 @@ def _state_table(cultivar, date):
                className="card-subtitle"),
         dash_table.DataTable(
             columns=columns, data=data,
-            sort_action="native", filter_action="native",
-            export_format="csv", export_headers="display", page_size=20,
+            sort_action="native",
+            export_format="csv", export_headers="display", page_size=15,
             style_as_list_view=True,
             style_table={"overflowX": "auto"},
-            style_cell={"fontFamily": "Inter, sans-serif", "fontSize": "13px",
-                        "padding": "8px 12px", "textAlign": "left",
+            style_cell={"fontFamily": "Inter, sans-serif", "fontSize": "12.5px",
+                        "padding": "7px 14px 7px 0", "textAlign": "left",
                         "backgroundColor": "white", "border": "none"},
-            style_header={"backgroundColor": "white", "color": "#667",
-                          "fontWeight": "600", "fontSize": "11px",
-                          "textTransform": "uppercase", "letterSpacing": "0.4px",
-                          "borderBottom": "2px solid #e4e8ef"},
-            style_data={"borderBottom": "1px solid #f4f4f4"},
-            style_data_conditional=[{"if": {"state": "active"},
-                                     "backgroundColor": "#fafcff",
-                                     "border": "1px solid #e4e8ef"}],
+            style_header={"backgroundColor": "white", "color": "#99a",
+                          "fontWeight": "600", "fontSize": "10.5px",
+                          "textTransform": "uppercase", "letterSpacing": "0.5px",
+                          "borderBottom": "1px solid #eee",
+                          "padding": "0 14px 7px 0"},
+            style_data={"borderBottom": "1px solid #f6f6f8"},
             style_cell_conditional=[
                 {"if": {"column_id": "code"},   "fontWeight": "600", "color": "#2d7a45"},
-                {"if": {"column_id": "mother"}, "fontWeight": "600", "color": "#14213d"},
+                {"if": {"column_id": "mother"}, "color": "#889"},
             ],
         ),
     ])
@@ -173,16 +171,22 @@ layout = html.Div([
 
     # ── Bottom half: pick a date, see that state's measurements ───────────────
     html.Div(className="card", children=[
-        html.H3("State Data — Worksheet 1 measurements", className="card-title"),
-        html.Div(className="filter-row", children=[
-            html.Label("Date", className="filter-label"),
-            dcc.Dropdown(id="pa2-date", clearable=False, style={"width": "220px"}),
+        html.Details([
+            html.Summary("State Data — Worksheet 1 measurements",
+                         style={"cursor": "pointer", "fontSize": "15px",
+                                "fontWeight": "700", "color": "#14213d"}),
+            html.Div(style={"marginTop": "14px"}, children=[
+                html.Div(className="filter-row", children=[
+                    html.Label("Date", className="filter-label"),
+                    dcc.Dropdown(id="pa2-date", clearable=False,
+                                 style={"width": "220px"}),
+                ]),
+                html.P("Every per-plantlet measurement for the chosen cultivar, "
+                       "all mothers. Sort by any header or Export to CSV.",
+                       className="card-subtitle"),
+                dcc.Loading(html.Div(id="pa2-state")),
+            ]),
         ]),
-        html.P("Every per-plantlet measurement for the chosen cultivar (all mothers). "
-               "Defaults to all dates — narrow with the dropdown above, sort by any "
-               "header, type in a header to filter, or Export to CSV.",
-               className="card-subtitle"),
-        dcc.Loading(html.Div(id="pa2-state")),
     ]),
 ])
 
