@@ -30,56 +30,72 @@ _STATE_COLS = [
 ]
 
 
-def _state_table(cultivar, mid, date):
-    """Per-plantlet Worksheet 1 measurements for one cultivar/mother/date."""
+def _state_table(cultivar, date):
+    """All per-plantlet Worksheet 1 measurements for a cultivar. `date` may be
+    a single ISO date or "all" (every measurement date). Rows cover all mothers;
+    a Mother column identifies each."""
     ws1_cv = cache.ws1_data.get(cultivar, {})
     plants = ws1_cv.get("plants", {})
-    codes = sorted(
-        c for c in ws1_cv.get("codes_by_date", {}).get(date, [])
-        if c.split(".")[0] == str(mid)           # code starts with the mother id
-    )
+    all_dates = ws1_cv.get("dates", [])
+    sel_dates = all_dates if date in (None, "all") else [date]
+    show_date = date in (None, "all")
+
     rows = []
-    for c in codes:
-        rec = plants.get(c, {}).get(date)
-        if not rec:
-            continue
-        row = {"code": c}
-        row.update({k: rec.get(k) for k, _ in _STATE_COLS})
-        rows.append(row)
+    for d in sel_dates:
+        for c in sorted(ws1_cv.get("codes_by_date", {}).get(d, [])):
+            rec = plants.get(c, {}).get(d)
+            if not rec:
+                continue
+            row = {"_d": d,
+                   "date": pd.Timestamp(d).strftime("%d %b %Y"),
+                   "mother": f"M{c.split('.')[0]}",
+                   "code": c}
+            for k, _ in _STATE_COLS:
+                v = rec.get(k)
+                row[k] = round(float(v), 1) if (k == "stolon_length" and v is not None) else v
+            rows.append(row)
 
     if not rows:
-        return html.Div(
-            f"No plantlet measurements recorded for M{mid} on "
-            f"{pd.Timestamp(date).strftime('%d %b %Y')}.",
-            className="stats-empty",
-        )
+        return html.Div(f"No Worksheet 1 measurements recorded for {cultivar}.",
+                        className="stats-empty")
 
-    # keep only columns that carry at least one real (non-zero, non-null) value
+    rows.sort(key=lambda r: (r["_d"], r["mother"], r["code"]))
+    n_mothers = len({r["mother"] for r in rows})
+
+    # keep only measurement columns that carry a real (non-zero, non-null) value
     active = [(k, lbl) for k, lbl in _STATE_COLS
               if any(r.get(k) not in (None, 0) for r in rows)]
-    columns = [{"name": "Code", "id": "code"}] + \
-              [{"name": lbl, "id": k} for k, lbl in active]
-    keep = ["code"] + [k for k, _ in active]
+    base = ([("date", "Date")] if show_date else []) + [("mother", "Mother"), ("code", "Code")]
+    columns = [{"name": lbl, "id": k} for k, lbl in base + active]
+    keep = [k for k, _ in base + active]
     data = [{k: r.get(k) for k in keep} for r in rows]
 
+    when = "all dates" if show_date else pd.Timestamp(date).strftime("%d %b %Y")
     return html.Div([
-        html.P(
-            f"M{mid} · {pd.Timestamp(date).strftime('%d %b %Y')} · "
-            f"{len(rows)} plantlet{'s' if len(rows) != 1 else ''} measured",
-            className="card-subtitle",
-        ),
+        html.P(f"{cultivar} · {when} · {len(rows)} plantlet-measurements · "
+               f"{n_mothers} mother{'s' if n_mothers != 1 else ''}",
+               className="card-subtitle"),
         dash_table.DataTable(
             columns=columns, data=data,
-            sort_action="native", export_format="csv",
-            export_headers="display", page_size=15,
+            sort_action="native", filter_action="native",
+            export_format="csv", export_headers="display", page_size=20,
+            style_as_list_view=True,
             style_table={"overflowX": "auto"},
-            style_cell={"fontFamily": "Inter, sans-serif", "fontSize": "12px",
-                        "padding": "6px 10px", "textAlign": "left"},
-            style_header={"fontWeight": "600", "backgroundColor": "#f0ebe3",
-                          "border": "none"},
-            style_data={"border": "none", "borderBottom": "1px solid #f0ebe3"},
-            style_cell_conditional=[{"if": {"column_id": "code"},
-                                     "fontWeight": "600", "color": "#3e5c29"}],
+            style_cell={"fontFamily": "Inter, sans-serif", "fontSize": "13px",
+                        "padding": "8px 12px", "textAlign": "left",
+                        "backgroundColor": "white", "border": "none"},
+            style_header={"backgroundColor": "white", "color": "#667",
+                          "fontWeight": "600", "fontSize": "11px",
+                          "textTransform": "uppercase", "letterSpacing": "0.4px",
+                          "borderBottom": "2px solid #e4e8ef"},
+            style_data={"borderBottom": "1px solid #f4f4f4"},
+            style_data_conditional=[{"if": {"state": "active"},
+                                     "backgroundColor": "#fafcff",
+                                     "border": "1px solid #e4e8ef"}],
+            style_cell_conditional=[
+                {"if": {"column_id": "code"},   "fontWeight": "600", "color": "#2d7a45"},
+                {"if": {"column_id": "mother"}, "fontWeight": "600", "color": "#14213d"},
+            ],
         ),
     ])
 
@@ -157,13 +173,14 @@ layout = html.Div([
 
     # ── Bottom half: pick a date, see that state's measurements ───────────────
     html.Div(className="card", children=[
-        html.H3("State Data — measurements on a date", className="card-title"),
+        html.H3("State Data — Worksheet 1 measurements", className="card-title"),
         html.Div(className="filter-row", children=[
             html.Label("Date", className="filter-label"),
             dcc.Dropdown(id="pa2-date", clearable=False, style={"width": "220px"}),
         ]),
-        html.P("Per-plantlet Worksheet 1 measurements for the selected cultivar, "
-               "mother, and date. Click a header to sort; use Export for CSV.",
+        html.P("Every per-plantlet measurement for the chosen cultivar (all mothers). "
+               "Defaults to all dates — narrow with the dropdown above, sort by any "
+               "header, type in a header to filter, or Export to CSV.",
                className="card-subtitle"),
         dcc.Loading(html.Div(id="pa2-state")),
     ]),
@@ -189,20 +206,20 @@ def init_dropdown(_):
 )
 def upd_date_options(cultivar):
     dates = cache.ws1_data.get(cultivar, {}).get("dates", []) if cultivar else []
-    opts = [{"label": pd.Timestamp(d).strftime("%d %b %Y"), "value": d} for d in dates]
-    return opts, (dates[-1] if dates else None)
+    opts = [{"label": "All dates", "value": "all"}] + \
+           [{"label": pd.Timestamp(d).strftime("%d %b %Y"), "value": d} for d in dates]
+    return opts, "all"
 
 
 @callback(
     Output("pa2-state", "children"),
     Input("pa2-cv", "value"),
-    Input("pa2-mother", "value"),
     Input("pa2-date", "value"),
 )
-def upd_state(cultivar, mother_id, date):
-    if not cultivar or not date:
-        return html.Div("Select a cultivar and date.", className="stats-empty")
-    return _state_table(cultivar, mother_id or 1, date)
+def upd_state(cultivar, date):
+    if not cultivar:
+        return html.Div("Select a cultivar.", className="stats-empty")
+    return _state_table(cultivar, date or "all")
 
 
 @callback(
