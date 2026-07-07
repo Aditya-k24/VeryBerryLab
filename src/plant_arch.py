@@ -604,10 +604,6 @@ const LSTK=['#2f6b25','#2f6b25','#357a2a','#3a852f','#409034'];
 function lf(o){return LFIL[Math.min(o,4)];}
 function ls(o){return LSTK[Math.min(o,4)];}
 
-/* Deterministic 0..1 hash — stable organic jitter per node (no reflow flicker) */
-function hash(s){let h=2166136261;s=String(s);
-  for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}
-  return (h>>>0)/4294967295;}
 
 /* Trifoliate strawberry leaf: top leaflet + lower-left + lower-right,
    all three leaflets meeting at (0,0) for clean scaling. */
@@ -649,11 +645,13 @@ fm.append('feMergeNode').attr('in','SourceGraphic');
 
 const mainG=svg.append('g');
 
-/* Build hierarchy & TOP-DOWN layout — mother crown at the top, runners
-   flowing downward and branching like a tree's root system. */
+/* Build hierarchy & TOP-DOWN layout — mother crown at the top, roots flowing
+   downward and branching like a tree's root system. */
 const hier=d3.hierarchy(DATA.tree);
 const maxDepth=d3.max(hier.descendants(),d=>d.depth)||1;
-const rowH=Math.max(50,Math.min(112,(H-150)/(maxDepth+1)));
+const nLeaves=hier.leaves().length;
+const rowH=Math.max(54,Math.min(122,(H-150)/(maxDepth+1)));
+const dx=Math.max(12,Math.min(32,(W-100)/Math.max(nLeaves,1)));
 const TOP=52;
 
 /* Subtree leaf mass → root thickness (thick trunk near crown, fine at tips) */
@@ -661,35 +659,24 @@ hier.eachAfter(d=>{ d._m=d.children?d.children.reduce((s,c)=>s+c._m,0):1; });
 const maxM=hier._m||1;
 function rw(d){ return 1.0 + 7.0*Math.pow(d._m/maxM,0.55); }
 
-/* Ballistic root layout: every root advances along a heading that fans out
-   from the crown and bends back toward vertical (gravitropism); branch
-   stolons splay wider than the axis they leave. Reads like a real root/tree
-   system rather than a grid of parallel drops. */
-const DOWN=Math.PI/2;                       // +y = straight down on screen
-(function layout(d,x,y,heading){
-  d.X=x; d.Y=y+TOP;
-  const kids=d.children||[]; const n=kids.length;
-  if(!n) return;
-  const spread=Math.min(Math.PI*0.85, 0.42+0.30*n);
-  kids.forEach((c,i)=>{
-    let off = n>1 ? (i/(n-1)-0.5)*spread : 0;
-    if(c.data.order===d.data.order) off*=0.22;      // continuation stays straight
-    let h = heading + off;
-    h = h + (DOWN-h)*0.20;                           // gravitropism → downward
-    h += (hash(c.data.id+'h')-0.5)*0.28;             // organic wobble
-    const step = rowH*(0.72+0.55*hash(c.data.id+'s'));
-    layout(c, x+Math.cos(h)*step, y+Math.sin(h)*step, h);
-  });
-})(hier,0,0,DOWN);
+/* Tidy-tree layout reserves a horizontal slot per subtree, so NO two branches
+   ever overlap. nodeSize → x = horizontal slot, y = depth (downward). A mild
+   depth-proportional horizontal spread makes the roots fan out organically
+   while preserving the collision-free ordering. */
+d3.tree().nodeSize([dx,rowH])
+  .separation((a,b)=>(a.parent===b.parent?1:1.4))(hier);
+hier.each(d=>{
+  const fan=1+0.55*(d.depth/(maxDepth+0.001));   // deeper roots splay wider
+  d.X=d.x*fan; d.Y=d.y+TOP;
+});
 
-/* Organic curved root: quadratic with a seeded perpendicular wiggle */
+/* Smooth root link — leaves the parent downward and arrives at the child
+   downward (vertical cubic Bézier). Flowing curves that cannot cross because
+   the node x-slots are already collision-free. */
 function rootPath(s,t){
   const x0=s.X,y0=s.Y,x1=t.X,y1=t.Y;
-  const mx=(x0+x1)/2,my=(y0+y1)/2;
-  const ux=x1-x0,uy=y1-y0,L=Math.hypot(ux,uy)||1;
-  const nx=-uy/L,ny=ux/L;
-  const amp=Math.min(14,L*0.14)*(hash(t.data.id+'c')-0.5)*2;
-  return `M${x0},${y0} Q${mx+nx*amp},${my+ny*amp} ${x1},${y1}`;
+  const my=(y0+y1)/2;
+  return `M${x0},${y0} C${x0},${my} ${x1},${my} ${x1},${y1}`;
 }
 
 /* Roots — curved, tapered by subtree mass, coloured dark→pale by depth */
