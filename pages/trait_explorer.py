@@ -124,76 +124,94 @@ def _n_timepoints(df, trait):
 # ───────────────────────────────────────────────────────────────────────────
 
 def _timeseries(df, trait, cvs, err_style, show_raw, show_title):
-    fig = go.Figure()
-    cvs_ord = [c for c in ORDERED_CVS if c in cvs]
+    """Faceted growth curves — one panel per cohort (Batch A | Batch B), all
+    solid lines on a shared y-axis. The two cohorts are measured on different
+    (offset) dates, so separate panels are both cleaner and more honest than
+    overlaying eleven solid/dashed lines on one axis."""
+    a_cvs = [c for c in sorted(BATCH_A) if c in cvs]
+    b_cvs = [c for c in sorted(BATCH_B) if c in cvs]
+    panels = [p for p in [("A", A_LABEL, a_cvs), ("B", B_LABEL, b_cvs)] if p[2]]
 
-    seen_group = set()
-    for cv in cvs_ord:
-        g = _agg(df, cv, trait)
-        if g is None:
-            continue
-        color = CV_COLOR.get(cv, "#666")
-        b = _batch(cv)
-        dash_style = "solid" if b == "A" else "dash"
-        symbol = "circle" if b == "A" else "square"
-        grp = A_LABEL if b == "A" else B_LABEL
-        grp_title = grp if grp not in seen_group else None
-        seen_group.add(grp)
-
-        xs = g["date"].tolist()
-        ys = g["mean"].tolist()
-        se = g["se"].tolist()
-
-        # SE band (optional) drawn first, under the line
-        if err_style == "band" and len(xs) > 1:
-            yu = [m + s for m, s in zip(ys, se)]
-            yd = [m - s for m, s in zip(ys, se)]
-            fig.add_trace(go.Scatter(
-                x=xs + xs[::-1], y=yu + yd[::-1],
-                fill="toself", fillcolor=_rgba(color, 0.13),
-                line=dict(color="rgba(0,0,0,0)"), hoverinfo="skip",
-                showlegend=False, legendgroup=grp,
-            ))
-
-        # raw replicate points (optional)
-        if show_raw:
-            raw = df[df["cultivar"] == cv][["date", trait]].dropna(subset=[trait])
-            jit = (np.random.default_rng(abs(hash(cv)) % 2**32)
-                   .uniform(-0.16, 0.16, len(raw)) * 86400e3)
-            fig.add_trace(go.Scatter(
-                x=(pd.to_datetime(raw["date"]).astype("int64") // 10**6 + jit),
-                y=raw[trait], mode="markers",
-                marker=dict(size=4, color=color, opacity=0.35,
-                            line=dict(width=0)),
-                hoverinfo="skip", showlegend=False, legendgroup=grp,
-            ))
-
-        err = (dict(type="data", array=se, thickness=1.3, width=3, color=color)
-               if err_style == "bars" else None)
-
-        fig.add_trace(go.Scatter(
-            x=xs, y=ys, mode="lines+markers",
-            name=cv, legendgroup=grp, legendgrouptitle_text=grp_title,
-            line=dict(color=color, width=2.2, dash=dash_style),
-            marker=dict(size=7, color=color, symbol=symbol,
-                        line=dict(width=1, color="white")),
-            error_y=err,
-            customdata=np.stack([se, g["n"]], axis=-1),
-            hovertemplate=(f"<b>{cv}</b> ({grp})<br>%{{x|%d %b %Y}}<br>"
-                           f"{TRAIT_LABELS.get(trait, trait)}: "
-                           "%{y:.2f} ± %{customdata[0]:.2f}<br>"
-                           "n = %{customdata[1]}<extra></extra>"),
-        ))
-
-    if not fig.data:
+    if not panels:
+        fig = go.Figure()
         fig.add_annotation(text="No cultivars selected.", x=0.5, y=0.5,
                            xref="paper", yref="paper", showarrow=False,
                            font=dict(size=14, color="#888"))
+        return _pub_layout(fig, _y_title(trait), legend=False, height=520)
 
-    title = _y_title(trait) if show_title else None
-    _pub_layout(fig, _y_title(trait), title=title, height=560)
-    fig.update_xaxes(tickformat="%d %b", dtick=14 * 86400e3)
-    fig.update_yaxes(rangemode="tozero")
+    ncols = len(panels)
+    fig = make_subplots(rows=1, cols=ncols, shared_yaxes=True,
+                        horizontal_spacing=0.045,
+                        subplot_titles=[p[1] for p in panels])
+
+    for ci, (b, label, cvlist) in enumerate(panels, start=1):
+        symbol = "circle" if b == "A" else "square"
+        for cv in cvlist:
+            g = _agg(df, cv, trait)
+            if g is None:
+                continue
+            color = CV_COLOR.get(cv, "#666")
+            xs, ys, se = g["date"].tolist(), g["mean"].tolist(), g["se"].tolist()
+
+            if err_style == "band" and len(xs) > 1:
+                yu = [m + s for m, s in zip(ys, se)]
+                yd = [m - s for m, s in zip(ys, se)]
+                fig.add_trace(go.Scatter(
+                    x=xs + xs[::-1], y=yu + yd[::-1], fill="toself",
+                    fillcolor=_rgba(color, 0.12), line=dict(color="rgba(0,0,0,0)"),
+                    hoverinfo="skip", showlegend=False), row=1, col=ci)
+
+            if show_raw:
+                raw = df[df["cultivar"] == cv][["date", trait]].dropna(subset=[trait])
+                jit = (np.random.default_rng(abs(hash(cv)) % 2**32)
+                       .uniform(-0.16, 0.16, len(raw)) * 86400e3)
+                fig.add_trace(go.Scatter(
+                    x=(pd.to_datetime(raw["date"]).astype("int64") // 10**6 + jit),
+                    y=raw[trait], mode="markers",
+                    marker=dict(size=4, color=color, opacity=0.32, line=dict(width=0)),
+                    hoverinfo="skip", showlegend=False), row=1, col=ci)
+
+            err = (dict(type="data", array=se, thickness=1.2, width=3, color=color)
+                   if err_style == "bars" else None)
+            fig.add_trace(go.Scatter(
+                x=xs, y=ys, mode="lines+markers", name=cv,
+                legendgroup=label, legendgrouptitle_text=label,
+                line=dict(color=color, width=2.4),
+                marker=dict(size=7, color=color, symbol=symbol,
+                            line=dict(width=1, color="white")),
+                error_y=err,
+                customdata=np.stack([np.array(se), g["n"].to_numpy()], axis=-1),
+                hovertemplate=(f"<b>{cv}</b> ({label})<br>%{{x|%d %b %Y}}<br>"
+                               f"{TRAIT_LABELS.get(trait, trait)}: "
+                               "%{y:.2f} ± %{customdata[0]:.2f}<br>"
+                               "n = %{customdata[1]}<extra></extra>"),
+                ), row=1, col=ci)
+
+    # ── publication layout for the faceted figure ──
+    fig.update_layout(
+        template="simple_white",
+        height=540,
+        margin=dict(l=76, r=176, t=54, b=58),
+        font=dict(family="Inter, Helvetica, Arial, sans-serif", size=13, color="#222"),
+        title=(dict(text=_y_title(trait), x=0.0, xanchor="left",
+                    font=dict(size=16, color="#111")) if show_title else None),
+        plot_bgcolor="white", paper_bgcolor="white",
+        legend=dict(x=1.01, y=1, xanchor="left", yanchor="top",
+                    font=dict(size=12), groupclick="toggleitem", tracegroupgap=8,
+                    bordercolor="#e6e8ec", borderwidth=1),
+        hovermode="closest",
+    )
+    fig.update_xaxes(title=dict(text="Measurement date", font=dict(size=12)),
+                     tickformat="%d %b", dtick=14 * 86400e3, showgrid=False,
+                     ticks="outside", ticklen=5, linecolor="#333",
+                     tickcolor="#333", tickfont=dict(size=11))
+    fig.update_yaxes(showgrid=True, gridcolor="#eef0f2", zeroline=False,
+                     rangemode="tozero", ticks="outside", ticklen=5,
+                     linecolor="#333", tickcolor="#333", tickfont=dict(size=12))
+    fig.update_yaxes(title=dict(text=_y_title(trait), font=dict(size=13)),
+                     row=1, col=1)
+    for ann in fig.layout.annotations:      # panel titles
+        ann.font = dict(size=13, color="#111")
     return fig
 
 
@@ -306,9 +324,10 @@ def _caption(df, trait):
                 "of each cohort's season. Bars are cultivar mean ± SE of n = 3 "
                 "replicate plants; error bars = standard error.")
     return ("Mean ± standard error of n = 3 replicate plants per cultivar on each "
-            "measurement date. Batch A (solid, ●) measured Apr 16 – Jun 25; "
-            "Batch B (dashed, ■) measured Apr 23 – Jul 2 — the two cohorts run "
-            "concurrently on a one-week-offset schedule, not in sequence.")
+            "measurement date. Batch A (●) and Batch B (■) are separate cohorts "
+            "measured on a one-week-offset schedule (A: Apr 16 – Jun 25; "
+            "B: Apr 23 – Jul 2), so each is shown in its own panel on a shared "
+            "y-axis.")
 
 
 # ───────────────────────────────────────────────────────────────────────────
