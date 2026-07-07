@@ -23,23 +23,6 @@ dash.register_page(__name__, path="/", name="Data Health", order=0)
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _summary_cards(df):
-    miss_pct = df[TRAIT_COLS].isna().mean().mean() * 100
-    items = [
-        ("Cultivars",    str(df["cultivar"].nunique()),  "card-blue"),
-        ("Dates",        str(df["date"].nunique()),      "card-green"),
-        ("Traits",       str(len(TRAIT_COLS)),           "card-purple"),
-        ("Observations", str(len(df)),                   "card-orange"),
-        ("Missing",      f"{miss_pct:.1f}%",             "card-red"),
-    ]
-    return html.Div(className="summary-row", children=[
-        html.Div(className=f"summary-card {cls}", children=[
-            html.Div(val,   className="summary-val"),
-            html.Div(label, className="summary-label"),
-        ]) for label, val, cls in items
-    ])
-
-
 def _timeline_fig(df):
     colors = {"A": "#56B4E9", "B": "#E69F00"}
     fig = go.Figure()
@@ -120,15 +103,45 @@ def _completeness_fig(df, selected_trait):
 # Layout
 # ---------------------------------------------------------------------------
 
+def _hero():
+    df = cache.df_clean
+    n_cv = df["cultivar"].nunique() if not df.empty else 0
+    n_dt = df["date"].nunique() if not df.empty else 0
+    n_ob = len(df)
+    n_tr = len(TRAIT_COLS)
+    span = (f"{df['date'].min():%b} – {df['date'].max():%b %Y}" if not df.empty else "")
+    complete = (100 - df[TRAIT_COLS].isna().mean().mean() * 100) if not df.empty else 0
+    chip = lambda v, l: html.Div(className="hero-chip", children=[html.B(str(v)), html.Span(l)])
+    return html.Div(className="hero", children=[
+        html.Div(className="hero-glow"),
+        html.Div(className="hero-glow two"),
+        html.Div("VeryBerryLab · Phenotyping Batch 4", className="hero-eyebrow"),
+        html.H1(className="hero-title", children=[
+            "Strawberry ", html.Span("phenotyping", className="accent"), " analytics"]),
+        html.P("Vegetative and reproductive architecture of eleven strawberry "
+               "cultivars across a full growing season — ingestion, statistics, "
+               "and publication-ready figures in one place.",
+               className="hero-sub"),
+        html.Div(className="hero-stats", children=[
+            chip(n_cv, "Cultivars"), chip(n_dt, "Dates"),
+            chip(n_tr, "Traits"), chip(n_ob, "Observations"),
+            chip(f"{complete:.0f}%", "Complete"), chip(span, "Season"),
+        ]),
+        html.Div(className="hero-cta", children=[
+            dcc.Link("Explore traits →", href="/trait-explorer",
+                     className="hero-btn hero-btn-primary"),
+            dcc.Link("Compare cultivars", href="/date-compare",
+                     className="hero-btn hero-btn-ghost"),
+            dcc.Link("Methods & export", href="/export",
+                     className="hero-btn hero-btn-ghost"),
+        ]),
+    ])
+
+
 layout = html.Div([
-    html.Div(className="page-header", children=[
-        html.H1("Data Health", className="page-title"),
-        html.P("Cultivar roster, batch schedule, and measurement completeness.",
-               className="page-subtitle"),
-    ]),
     html.Div(className="content-area", children=[
 
-        html.Div(id="dh-cards"),
+        _hero(),
 
         html.Div(className="card", children=[
             html.H3("Measurement Timeline", className="card-title"),
@@ -173,11 +186,9 @@ layout = html.Div([
 # Callbacks
 # ---------------------------------------------------------------------------
 
-@callback(Output("dh-cards", "children"), Output("dh-timeline", "figure"),
-          Input("url", "pathname"))
+@callback(Output("dh-timeline", "figure"), Input("url", "pathname"))
 def render_static(_):
-    df = cache.df_clean
-    return _summary_cards(df), _timeline_fig(df)
+    return _timeline_fig(cache.df_clean)
 
 
 @callback(Output("dh-completeness", "figure"), Input("dh-trait", "value"))
