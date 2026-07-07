@@ -10,12 +10,78 @@ that handles all playback (play/pause, date scrubber, data table).
 """
 
 import dash
-from dash import Input, Output, callback, dcc, html
+import pandas as pd
+from dash import Input, Output, callback, dash_table, dcc, html
 
 import src.data_cache as cache
 from src.plant_arch import build_js_html, plant_summary, validate_render, _empty_html
 
 dash.register_page(__name__, path="/plant-animation", name="Plant Animation", order=4)
+
+# Worksheet-1 measurement columns shown in the state table (key → label)
+_STATE_COLS = [
+    ("stolon_length",   "Stolon length (cm)"),
+    ("sec_stolon",      "Sec stolons"),
+    ("sec_daughters",   "Sec daughters"),
+    ("ter_stolon",      "Ter stolons"),
+    ("ter_daughters",   "Ter daughters"),
+    ("quart_stolon",    "Qrt stolons"),
+    ("quart_daughters", "Qrt daughters"),
+]
+
+
+def _state_table(cultivar, mid, date):
+    """Per-plantlet Worksheet 1 measurements for one cultivar/mother/date."""
+    ws1_cv = cache.ws1_data.get(cultivar, {})
+    plants = ws1_cv.get("plants", {})
+    codes = sorted(
+        c for c in ws1_cv.get("codes_by_date", {}).get(date, [])
+        if c.split(".")[0] == str(mid)           # code starts with the mother id
+    )
+    rows = []
+    for c in codes:
+        rec = plants.get(c, {}).get(date)
+        if not rec:
+            continue
+        row = {"code": c}
+        row.update({k: rec.get(k) for k, _ in _STATE_COLS})
+        rows.append(row)
+
+    if not rows:
+        return html.Div(
+            f"No plantlet measurements recorded for M{mid} on "
+            f"{pd.Timestamp(date).strftime('%d %b %Y')}.",
+            className="stats-empty",
+        )
+
+    # keep only columns that carry at least one real (non-zero, non-null) value
+    active = [(k, lbl) for k, lbl in _STATE_COLS
+              if any(r.get(k) not in (None, 0) for r in rows)]
+    columns = [{"name": "Code", "id": "code"}] + \
+              [{"name": lbl, "id": k} for k, lbl in active]
+    keep = ["code"] + [k for k, _ in active]
+    data = [{k: r.get(k) for k in keep} for r in rows]
+
+    return html.Div([
+        html.P(
+            f"M{mid} · {pd.Timestamp(date).strftime('%d %b %Y')} · "
+            f"{len(rows)} plantlet{'s' if len(rows) != 1 else ''} measured",
+            className="card-subtitle",
+        ),
+        dash_table.DataTable(
+            columns=columns, data=data,
+            sort_action="native", export_format="csv",
+            export_headers="display", page_size=15,
+            style_table={"overflowX": "auto"},
+            style_cell={"fontFamily": "Inter, sans-serif", "fontSize": "12px",
+                        "padding": "6px 10px", "textAlign": "left"},
+            style_header={"fontWeight": "600", "backgroundColor": "#f0ebe3",
+                          "border": "none"},
+            style_data={"border": "none", "borderBottom": "1px solid #f0ebe3"},
+            style_cell_conditional=[{"if": {"column_id": "code"},
+                                     "fontWeight": "600", "color": "#3e5c29"}],
+        ),
+    ])
 
 # ── Cultivar list ─────────────────────────────────────────────────────────────
 
@@ -88,6 +154,19 @@ layout = html.Div([
             },
         ),
     ]),
+
+    # ── Bottom half: pick a date, see that state's measurements ───────────────
+    html.Div(className="card", children=[
+        html.H3("State Data — measurements on a date", className="card-title"),
+        html.Div(className="filter-row", children=[
+            html.Label("Date", className="filter-label"),
+            dcc.Dropdown(id="pa2-date", clearable=False, style={"width": "220px"}),
+        ]),
+        html.P("Per-plantlet Worksheet 1 measurements for the selected cultivar, "
+               "mother, and date. Click a header to sort; use Export for CSV.",
+               className="card-subtitle"),
+        dcc.Loading(html.Div(id="pa2-state")),
+    ]),
 ])
 
 
@@ -101,6 +180,29 @@ layout = html.Div([
 def init_dropdown(_):
     opts, default = _cv_options()
     return opts, default
+
+
+@callback(
+    Output("pa2-date", "options"),
+    Output("pa2-date", "value"),
+    Input("pa2-cv", "value"),
+)
+def upd_date_options(cultivar):
+    dates = cache.ws1_data.get(cultivar, {}).get("dates", []) if cultivar else []
+    opts = [{"label": pd.Timestamp(d).strftime("%d %b %Y"), "value": d} for d in dates]
+    return opts, (dates[-1] if dates else None)
+
+
+@callback(
+    Output("pa2-state", "children"),
+    Input("pa2-cv", "value"),
+    Input("pa2-mother", "value"),
+    Input("pa2-date", "value"),
+)
+def upd_state(cultivar, mother_id, date):
+    if not cultivar or not date:
+        return html.Div("Select a cultivar and date.", className="stats-empty")
+    return _state_table(cultivar, mother_id or 1, date)
 
 
 @callback(
