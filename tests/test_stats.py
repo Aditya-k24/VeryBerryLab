@@ -28,6 +28,19 @@ def test_cld_letter_a_is_highest_mean():
     assert "a" not in r.cld["Low"]        # not on the worst
 
 
+def test_cld_letter_order_follows_mean_not_group_size():
+    # A dominant top cultivar (small group) plus a larger low cluster: letter
+    # 'a' must go to the TOP mean, not to the biggest group.
+    g = {"Top": [40, 41, 39, 40, 42],
+         "M1": [10, 11, 9, 10, 12], "M2": [10, 9, 11, 10, 11],
+         "M3": [9, 10, 11, 10, 9]}
+    r = compute_stats_for(_df(g), "x", pd.Timestamp("2025-01-01"))
+    top = max(r.means, key=r.means.get)
+    assert top == "Top"
+    assert "a" in r.cld["Top"]
+    assert all("a" not in r.cld[c] for c in ["M1", "M2", "M3"])
+
+
 def test_epsilon2_bounds():
     g = {"A": [1, 2, 3], "B": [1, 2, 3], "C": [1, 2, 3]}
     r = compute_stats_for(_df(g), "x", pd.Timestamp("2025-01-01"))

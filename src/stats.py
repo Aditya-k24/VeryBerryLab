@@ -107,7 +107,11 @@ def _cld(means: dict[str, float], posthoc: pd.DataFrame, alpha: float) -> dict[s
 
     gl = list(groups)
     non_redundant = [g for g in gl if not any(g < other for other in gl)]
-    non_redundant.sort(key=lambda g: (-len(g), min(g)))
+    # Order letters by mean rank, not group size: sorted_cvs is descending by
+    # mean, so min(g) is the group's highest-mean member. Sorting on it makes
+    # letter 'a' fall on the top group (standard CLD convention). Sorting on
+    # size first wrongly gave 'a' to the largest group.
+    non_redundant.sort(key=lambda g: (min(g), -len(g)))
 
     letter_map: dict[str, list[str]] = {c: [] for c in sorted_cvs}
     for li, grp in enumerate(non_redundant):
