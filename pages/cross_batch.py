@@ -104,170 +104,64 @@ def _all_batch_stats(
     return out
 
 
-# ── Figure 1: extended timeline ───────────────────────────────────────────────
+# ── Figure 1: cross-batch trajectory ──────────────────────────────────────────
 
-def _timeline(
-    df_ws2: pd.DataFrame,
-    df_merged: pd.DataFrame,
-    trait: str,
-    cvs: list[str],
-    show_ws2: bool,
-    show_merged: bool,
-    batch_stats_cache: dict,
-) -> go.Figure:
-
+def _timeline(df_merged: pd.DataFrame, trait: str, cvs: list[str]) -> go.Figure:
+    """Cross-batch trajectory. Pheno batches are discrete measurement campaigns,
+    so they sit on an evenly-spaced categorical axis (not a squished calendar).
+    One line per cultivar = mean +/- SE across the batches where it was measured.
+    """
     fig = go.Figure()
-
-    # WS2 season shaded band
-    if not df_ws2.empty and trait in df_ws2.columns:
-        ws2_dates = sorted(df_ws2["date"].unique())
-        if len(ws2_dates) >= 2:
-            fig.add_vrect(
-                x0=ws2_dates[0], x1=ws2_dates[-1],
-                fillcolor="rgba(126,200,164,0.08)",
-                layer="below", line_width=0,
-            )
-            fig.add_annotation(
-                x=ws2_dates[0] + (ws2_dates[-1] - ws2_dates[0]) / 2,
-                y=1.05, yref="paper",
-                text="◀ Pheno 4 season — WS2 detail ▶",
-                showarrow=False, font=dict(size=10, color="#4a9e7c"),
-                xanchor="center",
-            )
-
-    # Batch date verticals
-    if not df_merged.empty:
-        bdf = (
-            df_merged.groupby("pheno_batch")["date"]
-            .first().reset_index().sort_values("date")
-        )
-        for _, row in bdf.iterrows():
-            if row["pheno_batch"] == "Pheno 4":
-                continue
-            fig.add_vline(
-                x=row["date"].timestamp() * 1000,
-                line_dash="dot", line_color="#cccccc", line_width=1.2,
-            )
-            fig.add_annotation(
-                x=row["date"], y=1.05, yref="paper",
-                text=row["pheno_batch"], showarrow=False,
-                font=dict(size=9, color="#999"), xanchor="center",
-            )
-
-    added: set[str] = set()
-
-    for cv in cvs:
-        color = CV_COLOR.get(cv, "#888")
-
-        # WS2 lines + SE ribbon
-        if show_ws2 and not df_ws2.empty and trait in df_ws2.columns:
-            cv_ws2 = df_ws2[df_ws2["cultivar"] == cv][["date", trait]].dropna(subset=[trait])
-            if not cv_ws2.empty:
-                agg = (
-                    cv_ws2.groupby("date")[trait]
-                    .agg(
-                        mean="mean",
-                        se=lambda x: x.std(ddof=1) / np.sqrt(len(x)) if len(x) > 1 else 0.0,
-                    )
-                    .reset_index().sort_values("date")
-                )
-                xs = agg["date"].tolist()
-                ys = agg["mean"].tolist()
-                yu = (agg["mean"] + agg["se"]).tolist()
-                yd = (agg["mean"] - agg["se"]).tolist()
-
-                fig.add_trace(go.Scatter(
-                    x=xs + xs[::-1], y=yu + yd[::-1],
-                    fill="toself", fillcolor=_hex_rgba(color, 0.12),
-                    line_color="rgba(0,0,0,0)", showlegend=False,
-                    hoverinfo="skip", legendgroup=cv,
-                ))
-                fig.add_trace(go.Scatter(
-                    x=xs, y=ys, mode="lines+markers",
-                    name=cv, legendgroup=cv, showlegend=(cv not in added),
-                    line=dict(color=color, width=2),
-                    marker=dict(size=6, color=color, line=dict(width=1, color="white")),
-                    hovertemplate=(
-                        f"<b>{cv}</b> · WS2<br>%{{x|%d %b %Y}}<br>"
-                        f"{_ALL_TRAIT_LABELS.get(trait, trait)}: %{{y:.2f}}<extra></extra>"
-                    ),
-                ))
-                added.add(cv)
-
-        # Merged batch markers with ±1 SE + CLD letter
-        if show_merged and not df_merged.empty and trait in df_merged.columns:
-            cv_m = df_merged[df_merged["cultivar"] == cv]
-            for batch in _BATCH_ORDER:
-                bsub = cv_m[cv_m["pheno_batch"] == batch][trait].dropna()
-                if bsub.empty:
+    if df_merged.empty or trait not in df_merged.columns:
+        fig.add_annotation(text="No cross-batch data for this trait.",
+                           x=0.5, y=0.5, xref="paper", yref="paper",
+                           showarrow=False, font=dict(size=14, color="#888"))
+    else:
+        batches = [b for b in _BATCH_ORDER if b in df_merged["pheno_batch"].unique()]
+        for cv in cvs:
+            cvd = df_merged[df_merged["cultivar"] == cv]
+            xs, ys, es, meta = [], [], [], []
+            for b in batches:
+                vals = cvd[cvd["pheno_batch"] == b][trait].dropna()
+                if vals.empty:
                     continue
-                bdate  = cv_m[cv_m["pheno_batch"] == batch]["date"].iloc[0]
-                mean_v = bsub.mean()
-                se_v   = bsub.std(ddof=1) / np.sqrt(len(bsub)) if len(bsub) > 1 else 0.0
-                n_reps = len(bsub)
-
-                # CLD letter for this cultivar at this batch
-                sr = batch_stats_cache.get((trait, batch))
-                cld_letter = sr.cld.get(cv, "") if sr else ""
-                sig_txt    = f" · {sig_label(sr.kw_p)}" if sr else ""
-
-                fig.add_trace(go.Scatter(
-                    x=[bdate], y=[mean_v], mode="markers+text",
-                    name=cv, legendgroup=cv, showlegend=(cv not in added),
-                    marker=dict(
-                        symbol=_BATCH_SYMBOL.get(batch, "circle"),
-                        size=12, color="white",
-                        line=dict(width=2.5, color=color),
-                    ),
-                    error_y=dict(
-                        type="data", array=[se_v],
-                        color=color, thickness=1.8, width=5,
-                    ),
-                    text=[cld_letter],
-                    textposition="top center",
-                    textfont=dict(size=9, color=color),
-                    customdata=[[batch, n_reps, cld_letter, sig_txt]],
-                    hovertemplate=(
-                        f"<b>{cv}</b> · %{{customdata[0]}}<br>"
-                        "%{x|%d %b %Y}<br>"
-                        f"{_ALL_TRAIT_LABELS.get(trait, trait)}: %{{y:.2f}} ± SE<br>"
-                        "n = %{customdata[1]}<br>"
-                        "CLD = %{customdata[2]}%{customdata[3]}"
-                        "<extra></extra>"
-                    ),
-                ))
-                added.add(cv)
-
-    # Symbol legend annotation
-    sym_lines = [
-        "── WS2 line (mean ± SE ribbon)",
-        "◇  Pheno 1", "◆  Pheno 2", "⬠  Pheno 3", "★  Pheno 4", "▲  Pheno 5",
-        "Letter = CLD group (shared = not sig. different)",
-    ]
-    fig.add_annotation(
-        x=1.0, y=0.0, xref="paper", yref="paper",
-        xanchor="right", yanchor="bottom",
-        text="<br>".join(f"<span style='color:#888;font-size:9px'>{l}</span>" for l in sym_lines),
-        showarrow=False, align="right",
-        bgcolor="rgba(255,255,255,0.88)",
-        bordercolor="#e8e8e8", borderwidth=1, borderpad=6,
-    )
+                n = len(vals)
+                se = float(vals.std(ddof=1) / np.sqrt(n)) if n > 1 else 0.0
+                dcol = cvd[cvd["pheno_batch"] == b]["date"]
+                when = dcol.iloc[0].strftime("%b %Y") if len(dcol) else ""
+                xs.append(b); ys.append(float(vals.mean())); es.append(se)
+                meta.append([round(se, 2), n, when])
+            if not xs:
+                continue
+            color = CV_COLOR.get(cv, "#888")
+            fig.add_trace(go.Scatter(
+                x=xs, y=ys, mode="lines+markers", name=cv,
+                line=dict(color=color, width=2.2),
+                marker=dict(size=8, color=color, line=dict(width=1, color="white")),
+                error_y=dict(type="data", array=es, color=color, thickness=1.2, width=4),
+                customdata=meta,
+                hovertemplate=(f"<b>{cv}</b> &middot; %{{x}}<br>%{{customdata[2]}}<br>"
+                               f"{_ALL_TRAIT_LABELS.get(trait, trait)}: "
+                               "%{y:.2f} &plusmn; %{customdata[0]:.2f}<br>"
+                               "n = %{customdata[1]}<extra></extra>"),
+            ))
+        fig.update_xaxes(type="category", categoryorder="array", categoryarray=batches)
 
     fig.update_layout(
-        height=500,
-        margin=dict(l=60, r=230, t=55, b=55),
+        template="simple_white", height=470,
+        margin=dict(l=72, r=178, t=28, b=52),
         plot_bgcolor="white", paper_bgcolor="white",
-        xaxis=dict(
-            title="Date", tickformat="%b %Y",
-            showgrid=True, gridcolor="#f0f0f0", zeroline=False,
-        ),
-        yaxis=dict(
-            title=_ALL_TRAIT_LABELS.get(trait, trait),
-            showgrid=True, gridcolor="#f0f0f0", rangemode="tozero",
-        ),
-        legend=dict(x=1.01, y=1, xanchor="left", font=dict(size=11), tracegroupgap=2),
+        xaxis=dict(title=dict(text="Phenotyping batch", font=dict(size=13)),
+                   showgrid=False, ticks="outside", ticklen=5,
+                   linecolor="#333", tickcolor="#333", tickfont=dict(size=12)),
+        yaxis=dict(title=dict(text=_ALL_TRAIT_LABELS.get(trait, trait), font=dict(size=13)),
+                   showgrid=True, gridcolor="#eef0f2", zeroline=False, rangemode="tozero",
+                   ticks="outside", ticklen=5, linecolor="#333", tickcolor="#333",
+                   tickfont=dict(size=12)),
+        legend=dict(x=1.01, y=1, xanchor="left", yanchor="top", font=dict(size=11),
+                    tracegroupgap=2, bordercolor="#e6e8ec", borderwidth=1),
         hovermode="closest",
-        font=dict(family="IBM Plex Sans, Helvetica, Arial, sans-serif", size=12),
+        font=dict(family="IBM Plex Sans, Helvetica, Arial, sans-serif", size=12, color="#222"),
     )
     return fig
 
@@ -505,7 +399,7 @@ layout = html.Div([
     html.Div(className="page-header", children=[
         html.H1("Cross-Batch Longitudinal View", className="page-title"),
         html.P(
-            "Pheno batches 1–5 (2024–2026+) on one time axis. "
+            "Cultivar trajectories across phenotyping batches 1–5 (2024–2026+). "
             "Same statistical engine as all other pages: "
             "KW · ε² · Conover–Iman · Holm · CLD. "
             "New cultivars Monterey & Fronteras appear as batch snapshots only.",
@@ -539,20 +433,6 @@ layout = html.Div([
                     ),
                 ]),
                 html.Div([
-                    html.Label("Layers", className="filter-label"),
-                    dcc.Checklist(
-                        id="cb-layers",
-                        options=[
-                            {"label": "  WS2 season detail", "value": "ws2"},
-                            {"label": "  Batch snapshots",   "value": "merged"},
-                        ],
-                        value=["ws2", "merged"],
-                        inline=True,
-                        inputStyle={"marginLeft": "10px"},
-                        style={"fontSize": "13px"},
-                    ),
-                ]),
-                html.Div([
                     html.Label("α level", className="filter-label"),
                     dcc.Dropdown(
                         id="cb-alpha",
@@ -570,11 +450,12 @@ layout = html.Div([
 
         # ── Section 1: Extended timeline ─────────────────────────────────
         html.Div(className="card", children=[
-            html.H3("Extended Time Axis — 2024 → 2026+", className="card-title"),
+            html.H3("Cross-Batch Trajectory (Pheno 1 → 5)", className="card-title"),
             html.P(
-                "Green band = Pheno 4 growing season (WS2 detail, mean ± SE ribbon). "
-                "Hollow symbols = batch snapshot (mean ± 1 SE). "
-                "Letter above marker = CLD group for that batch comparison.",
+                "Each cultivar's mean ± SE across phenotyping batches. Batches are "
+                "discrete measurement campaigns (2024–2026), shown evenly spaced — "
+                "a line spanning a gap means that cultivar was not measured in the "
+                "skipped batch. Per-batch cultivar statistics are below.",
                 className="card-subtitle",
             ),
             dcc.Graph(id="cb-timeline", config=GRAPH_CONFIG),
@@ -648,28 +529,22 @@ layout = html.Div([
     Output("cb-batch-meta", "children"),
     Input("cb-trait",  "value"),
     Input("cb-cvs",    "value"),
-    Input("cb-layers", "value"),
     Input("cb-alpha",  "value"),
     Input("cb-batch",  "value"),
 )
-def update(trait, cvs, layers, alpha, batch):
+def update(trait, cvs, alpha, batch):
     trait  = trait  or _DEFAULT_TRAIT
     cvs    = cvs    or _ALL_CVS
-    layers = layers or []
     alpha  = alpha  or 0.05
     batch  = batch  or "Pheno 4"
 
-    df_ws2    = cache.df_clean
     df_merged = cache.merged_df
 
-    show_ws2    = "ws2"    in layers
-    show_merged = "merged" in layers
-
-    # Precompute all batch × trait stats (used by both heatmap and timeline CLD annotations)
+    # Precompute all batch × trait stats (used by the ε² heatmap)
     bstats = _all_batch_stats(df_merged, alpha=alpha)
 
-    # Timeline
-    fig_tl = _timeline(df_ws2, df_merged, trait, cvs, show_ws2, show_merged, bstats)
+    # Cross-batch trajectory
+    fig_tl = _timeline(df_merged, trait, cvs)
 
     # Batch compare
     result = _batch_stats(df_merged, trait, batch, alpha=alpha)
