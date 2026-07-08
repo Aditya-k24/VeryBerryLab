@@ -145,8 +145,6 @@ app.layout = html.Div(className="app-wrapper", children=[
             ]),
             html.Div(className="topbar-actions", children=[
                 html.A("Methods", href="/export", className="topbar-link"),
-                html.A("GitHub", href="https://github.com/Aditya-k24/VeryBerryLab",
-                       target="_blank", className="topbar-link"),
             ]),
         ]),
         html.Main(className="main-content", children=[dash.page_container]),
