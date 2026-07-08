@@ -261,11 +261,11 @@ def _distribution(df, trait, cvs):
     if not dates:
         return go.Figure()
 
-    cols = min(6, len(dates))
+    cols = min(3, len(dates))
     rows = (len(dates) + cols - 1) // cols
-    titles = [pd.Timestamp(d).strftime("%d %b") for d in dates]
+    titles = [pd.Timestamp(d).strftime("%d %b %Y") for d in dates]
     fig = make_subplots(rows=rows, cols=cols, subplot_titles=titles,
-                        horizontal_spacing=0.05, vertical_spacing=0.14)
+                        horizontal_spacing=0.075, vertical_spacing=0.09)
 
     for i, date in enumerate(dates):
         r, c = i // cols + 1, i % cols + 1
@@ -275,45 +275,46 @@ def _distribution(df, trait, cvs):
         for j, cv in enumerate(present):
             vals = day[day["cultivar"] == cv][trait].dropna().tolist()
             color = CV_COLOR.get(cv, "#666")
-            oy = np.linspace(-0.22, 0.22, len(vals)) if len(vals) > 1 else [0.0]
+            oy = np.linspace(-0.26, 0.26, len(vals)) if len(vals) > 1 else [0.0]
             m = float(np.mean(vals))
             se = float(np.std(vals, ddof=1) / np.sqrt(len(vals))) if len(vals) > 1 else 0.0
             # SE whisker
             fig.add_trace(go.Scatter(
                 x=[m - se, m + se], y=[j, j], mode="lines",
-                line=dict(color=color, width=2), showlegend=False,
+                line=dict(color=color, width=2.4), showlegend=False,
                 hoverinfo="skip"), row=r, col=c)
             # replicate dots
             fig.add_trace(go.Scatter(
                 x=vals, y=[j + o for o in oy], mode="markers",
-                marker=dict(size=6, color=color, opacity=0.75,
-                            line=dict(width=0.6, color="white")),
+                marker=dict(size=8, color=color, opacity=0.72,
+                            line=dict(width=0.8, color="white")),
                 showlegend=False,
                 hovertemplate=f"<b>{cv}</b>: %{{x:.2f}}<extra></extra>",
                 ), row=r, col=c)
             # mean diamond
             fig.add_trace(go.Scatter(
                 x=[m], y=[j], mode="markers",
-                marker=dict(size=11, color=color, symbol="diamond",
-                            line=dict(width=1.2, color="white")),
+                marker=dict(size=14, color=color, symbol="diamond",
+                            line=dict(width=1.4, color="white")),
                 showlegend=False,
                 hovertemplate=f"<b>{cv}</b> mean: %{{x:.2f}} (n={len(vals)})<extra></extra>",
                 ), row=r, col=c)
         fig.update_yaxes(tickvals=list(range(len(present))), ticktext=present,
-                         tickfont=dict(size=10), row=r, col=c,
-                         showgrid=False, autorange="reversed")
+                         tickfont=dict(size=11.5), row=r, col=c,
+                         showgrid=False, autorange="reversed",
+                         range=[len(present) - 0.5, -0.5])
         fig.update_xaxes(showgrid=True, gridcolor="#eef0f2", ticks="outside",
-                         ticklen=4, tickfont=dict(size=10), row=r, col=c)
+                         ticklen=4, tickfont=dict(size=11), row=r, col=c)
 
     fig.update_layout(
         template="simple_white",
-        height=max(300, rows * 240),
-        margin=dict(l=96, r=24, t=44, b=44),
+        height=max(340, rows * 300),
+        margin=dict(l=104, r=28, t=50, b=46),
         plot_bgcolor="white", paper_bgcolor="white", showlegend=False,
-        font=dict(family="IBM Plex Sans, Helvetica, Arial, sans-serif", size=11, color="#222"),
+        font=dict(family="IBM Plex Sans, Helvetica, Arial, sans-serif", size=12, color="#222"),
     )
     for ann in fig.layout.annotations:      # subplot titles
-        ann.font = dict(size=12, color="#111")
+        ann.font = dict(size=13.5, color="#111", family="IBM Plex Serif, Georgia, serif")
     return fig
 
 
