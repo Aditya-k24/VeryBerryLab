@@ -80,7 +80,7 @@ def _heatmap(stats_cache, df):
         plot_bgcolor="white", paper_bgcolor="white",
         xaxis=dict(tickangle=-45),
         yaxis=dict(autorange="reversed"),
-        font=dict(family="Inter, sans-serif", size=11),
+        font=dict(family="IBM Plex Sans, Helvetica, Arial, sans-serif", size=11),
     )
     return fig
 

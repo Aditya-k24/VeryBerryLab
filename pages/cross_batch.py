@@ -267,7 +267,7 @@ def _timeline(
         ),
         legend=dict(x=1.01, y=1, xanchor="left", font=dict(size=11), tracegroupgap=2),
         hovermode="closest",
-        font=dict(family="Inter, sans-serif", size=12),
+        font=dict(family="IBM Plex Sans, Helvetica, Arial, sans-serif", size=12),
     )
     return fig
 
@@ -355,7 +355,7 @@ def _dotplot(result: StatsResult | None, trait: str) -> go.Figure:
             tickvals=list(range(n)), ticktext=tick_labels,
             showgrid=False, tickfont=dict(size=12),
         ),
-        font=dict(family="Inter, sans-serif", size=12),
+        font=dict(family="IBM Plex Sans, Helvetica, Arial, sans-serif", size=12),
         hovermode="closest",
     )
     return fig
@@ -494,7 +494,7 @@ def _eps2_heatmap(batch_stats_cache: dict, df_merged: pd.DataFrame) -> go.Figure
         plot_bgcolor="white", paper_bgcolor="white",
         xaxis=dict(title="Phenotyping Batch", side="bottom"),
         yaxis=dict(autorange="reversed"),
-        font=dict(family="Inter, sans-serif", size=11),
+        font=dict(family="IBM Plex Sans, Helvetica, Arial, sans-serif", size=11),
     )
     return fig
 

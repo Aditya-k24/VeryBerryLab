@@ -77,7 +77,7 @@ def _pub_layout(fig, y_title, *, title=None, x_title="Measurement date",
         template="simple_white",
         height=height,
         margin=dict(l=76, r=196 if legend else 34, t=54 if title else 26, b=58),
-        font=dict(family="Inter, Helvetica, Arial, sans-serif", size=13, color="#222"),
+        font=dict(family="IBM Plex Sans, Helvetica, Arial, sans-serif", size=13, color="#222"),
         title=(dict(text=title, x=0.0, xanchor="left",
                     font=dict(size=16, color="#111")) if title else None),
         plot_bgcolor="white", paper_bgcolor="white",
@@ -192,7 +192,7 @@ def _timeseries(df, trait, cvs, err_style, show_raw, show_title):
         template="simple_white",
         height=540,
         margin=dict(l=76, r=176, t=54, b=58),
-        font=dict(family="Inter, Helvetica, Arial, sans-serif", size=13, color="#222"),
+        font=dict(family="IBM Plex Sans, Helvetica, Arial, sans-serif", size=13, color="#222"),
         title=(dict(text=_y_title(trait), x=0.0, xanchor="left",
                     font=dict(size=16, color="#111")) if show_title else None),
         plot_bgcolor="white", paper_bgcolor="white",
@@ -310,7 +310,7 @@ def _distribution(df, trait, cvs):
         height=max(300, rows * 240),
         margin=dict(l=96, r=24, t=44, b=44),
         plot_bgcolor="white", paper_bgcolor="white", showlegend=False,
-        font=dict(family="Inter, Helvetica, Arial, sans-serif", size=11, color="#222"),
+        font=dict(family="IBM Plex Sans, Helvetica, Arial, sans-serif", size=11, color="#222"),
     )
     for ann in fig.layout.annotations:      # subplot titles
         ann.font = dict(size=12, color="#111")

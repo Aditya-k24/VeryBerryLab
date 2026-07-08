@@ -81,7 +81,7 @@ def _state_table(cultivar, date):
             export_format="csv", export_headers="display", page_size=15,
             style_as_list_view=True,
             style_table={"overflowX": "auto"},
-            style_cell={"fontFamily": "Inter, sans-serif", "fontSize": "12.5px",
+            style_cell={"fontFamily": "IBM Plex Sans, Helvetica, Arial, sans-serif", "fontSize": "12.5px",
                         "padding": "7px 14px 7px 0", "textAlign": "left",
                         "backgroundColor": "white", "border": "none"},
             style_header={"backgroundColor": "white", "color": "#99a",

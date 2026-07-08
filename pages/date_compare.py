@@ -100,7 +100,7 @@ def _dotplot(result):
                    showgrid=True, gridcolor="#f0f0f0", zeroline=False),
         yaxis=dict(tickvals=list(range(n)), ticktext=tick_labels,
                    showgrid=False, tickfont=dict(size=12)),
-        font=dict(family="Inter, sans-serif", size=12),
+        font=dict(family="IBM Plex Sans, Helvetica, Arial, sans-serif", size=12),
         hovermode="closest",
     )
     return fig

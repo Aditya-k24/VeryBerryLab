@@ -46,7 +46,7 @@ def _timeline_fig(df):
         xaxis=dict(tickformat="%d %b", showgrid=True, gridcolor="#f0f0f0"),
         yaxis=dict(autorange="reversed"),
         legend=dict(orientation="h", x=0.5, xanchor="center", y=-0.22),
-        font=dict(family="Inter, sans-serif", size=12),
+        font=dict(family="IBM Plex Sans, Helvetica, Arial, sans-serif", size=12),
     )
     return fig
 
@@ -94,7 +94,7 @@ def _completeness_fig(df, selected_trait):
         plot_bgcolor="white", paper_bgcolor="white",
         xaxis=dict(tickangle=-40),
         yaxis=dict(autorange="reversed"),
-        font=dict(family="Inter, sans-serif", size=12),
+        font=dict(family="IBM Plex Sans, Helvetica, Arial, sans-serif", size=12),
     )
     return fig
 
