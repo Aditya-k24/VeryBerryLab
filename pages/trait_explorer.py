@@ -144,14 +144,24 @@ def _timeseries(df, trait, cvs, err_style, show_raw, show_title):
                         horizontal_spacing=0.045,
                         subplot_titles=[p[1] for p in panels])
 
+    # Rebase each panel's x-axis to days elapsed since that batch's own first
+    # measurement date — Batch A and Batch B start on different calendar dates,
+    # so "days elapsed" (not calendar date) is what makes the two panels
+    # actually comparable, and reads as "Day 0 / Day 14 / Day 28…".
+    all_tick_days: set[int] = set()
+
     for ci, (b, label, cvlist) in enumerate(panels, start=1):
         symbol = "circle" if b == "A" else "square"
+        batch_start = df[df["batch"] == b]["date"].min()
         for cv in cvlist:
             g = _agg(df, cv, trait)
             if g is None:
                 continue
             color = CV_COLOR.get(cv, "#666")
-            xs, ys, se = g["date"].tolist(), g["mean"].tolist(), g["se"].tolist()
+            elapsed = (g["date"] - batch_start).dt.days
+            xs, ys, se = elapsed.tolist(), g["mean"].tolist(), g["se"].tolist()
+            dates_str = g["date"].dt.strftime("%d %b %Y").tolist()
+            all_tick_days.update(xs)
 
             if err_style == "band" and len(xs) > 1:
                 yu = [m + s for m, s in zip(ys, se)]
@@ -164,9 +174,9 @@ def _timeseries(df, trait, cvs, err_style, show_raw, show_title):
             if show_raw:
                 raw = df[df["cultivar"] == cv][["date", trait]].dropna(subset=[trait])
                 jit = (np.random.default_rng(abs(hash(cv)) % 2**32)
-                       .uniform(-0.16, 0.16, len(raw)) * 86400e3)
+                       .uniform(-0.3, 0.3, len(raw)))
                 fig.add_trace(go.Scatter(
-                    x=(pd.to_datetime(raw["date"]).astype("int64") // 10**6 + jit),
+                    x=(raw["date"] - batch_start).dt.days + jit,
                     y=raw[trait], mode="markers",
                     marker=dict(size=4, color=color, opacity=0.32, line=dict(width=0)),
                     hoverinfo="skip", showlegend=False), row=1, col=ci)
@@ -180,8 +190,10 @@ def _timeseries(df, trait, cvs, err_style, show_raw, show_title):
                 marker=dict(size=7, color=color, symbol=symbol,
                             line=dict(width=1, color="white")),
                 error_y=err,
-                customdata=np.stack([np.array(se), g["n"].to_numpy()], axis=-1),
-                hovertemplate=(f"<b>{cv}</b> ({label})<br>%{{x|%d %b %Y}}<br>"
+                customdata=np.stack(
+                    [np.array(se), g["n"].to_numpy(), np.array(dates_str)], axis=-1),
+                hovertemplate=(f"<b>{cv}</b> ({label})<br>Day %{{x}} "
+                               "(%{customdata[2]})<br>"
                                f"{TRAIT_LABELS.get(trait, trait)}: "
                                "%{y:.2f} ± %{customdata[0]:.2f}<br>"
                                "n = %{customdata[1]}<extra></extra>"),
@@ -201,9 +213,10 @@ def _timeseries(df, trait, cvs, err_style, show_raw, show_title):
                     bordercolor="#e6e8ec", borderwidth=1),
         hovermode="closest",
     )
-    fig.update_xaxes(title=dict(text="Measurement date", font=dict(size=12)),
-                     tickformat="%d %b", dtick=14 * 86400e3, showgrid=False,
-                     ticks="outside", ticklen=5, linecolor="#333",
+    tickvals = sorted(all_tick_days)
+    fig.update_xaxes(title=dict(text="Days since first measurement", font=dict(size=12)),
+                     tickvals=tickvals, ticktext=[f"Day {d}" for d in tickvals],
+                     showgrid=False, ticks="outside", ticklen=5, linecolor="#333",
                      tickcolor="#333", tickfont=dict(size=11))
     fig.update_yaxes(showgrid=True, gridcolor="#eef0f2", zeroline=False,
                      rangemode="tozero", ticks="outside", ticklen=5,
