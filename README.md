@@ -34,8 +34,37 @@ Open **http://localhost:5001**
 Run the tests:
 
 ```bash
+pip install -r requirements-dev.txt   # adds pytest + offline GIF-generator deps
 pytest -q
 ```
+
+---
+
+## Deploy to Google Cloud Run
+
+The data workbooks in `data/` are gitignored but **are** baked into the
+container image at build time (`.gcloudignore` / `.dockerignore` explicitly
+keep them, overriding `.gitignore`). Deploy from a machine that has the
+`data/` folder populated:
+
+```bash
+gcloud run deploy veryberry-analytics \
+  --source . \
+  --region <your-region> \
+  --memory 1Gi \
+  --allow-unauthenticated   # drop this flag to keep it private
+```
+
+Notes:
+- Startup does a one-time Excel ingest + stats computation (~15–60s
+  depending on CPU). Cloud Run's default startup probe window (240s)
+  covers this, but if you see cold-start 429s, raise `--timeout` or set
+  `--min-instances 1` to avoid scale-to-zero cold starts entirely.
+- The container runs `gunicorn --preload --workers 2 --threads 4` (see
+  `Dockerfile`) — `--preload` loads the data once in the master process
+  before forking workers, so workers don't each re-parse the workbooks.
+- Locally, `docker build -t veryberry . && docker run -p 8080:8080 -e PORT=8080 veryberry`
+  reproduces the exact Cloud Run environment.
 
 ---
 

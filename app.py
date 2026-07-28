@@ -9,6 +9,7 @@ Run from the Analytics/ directory:
 Then open:  http://localhost:5001
 """
 
+import os
 import sys
 import urllib.parse
 from pathlib import Path
@@ -108,7 +109,7 @@ app.layout = html.Div(className="app-wrapper", children=[
     # ── Sidebar ──────────────────────────────────────────────────────────
     html.Aside(className="sidebar", children=[
         html.Div(className="brand", children=[
-            html.Div(className="brand-mark", children="🍓"),
+            html.Div(className="brand-mark", children="VB"),
             html.Div(children=[
                 html.Span("VeryBerry", className="brand-berry"),
                 html.Span("Lab", className="brand-lab"),
@@ -169,10 +170,11 @@ def highlight_nav(pathname):
 
 
 if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5001))
     print()
     print("  ╔══════════════════════════════════════════════════╗")
     print("  ║  VeryBerryLab — Phenotyping Dashboard            ║")
-    print("  ║  Open  →  http://localhost:5001                  ║")
+    print(f"  ║  Open  →  http://localhost:{port:<24}║")
     print("  ╚══════════════════════════════════════════════════╝")
     print()
-    app.run(debug=False, port=5001, host="0.0.0.0")
+    app.run(debug=False, port=port, host="0.0.0.0")

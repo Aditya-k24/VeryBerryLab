@@ -1,9 +1,12 @@
-pandas>=2.0
-openpyxl>=3.1
-plotly>=5.18
-numpy>=1.24
-scipy>=1.11
-scikit-posthocs>=0.9
-statsmodels>=0.14
-dash>=2.14
-pytest>=7.4
+# Runtime dependencies for the Dash web app (app.py + src/ + pages/).
+# Pinned to exact versions verified against the test suite (pytest -q, 30 passed).
+# Dev-only tooling (tests, offline GIF generator) lives in requirements-dev.txt.
+dash==4.4.0
+plotly==6.8.0
+pandas==3.0.3
+numpy==2.5.1
+scipy==1.18.0
+scikit-posthocs==0.14.0
+statsmodels==0.14.6
+openpyxl==3.1.5
+gunicorn==23.0.0

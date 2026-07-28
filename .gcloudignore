@@ -1,0 +1,21 @@
+# NOTE: gcloud defaults to .gitignore rules when this file is absent, which
+# would strip *.xlsx (the data workbooks the app needs) out of the build
+# context. This file overrides that — data ships, only dev/build cruft is excluded.
+.git
+.gitignore
+.venv
+venv
+__pycache__
+*.py[cod]
+.pytest_cache
+tests/
+data/processed/
+plant_animation/output/
+export_dcc/
+scripts/
+.DS_Store
+._*
+*.log
+.vscode
+.idea
+requirements-dev.txt
