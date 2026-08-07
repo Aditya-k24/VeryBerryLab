@@ -27,7 +27,44 @@ python3 app.py
 
 Open **http://localhost:5001**
 
-> The app expects the source Excel workbook at `../Phenotyping Data with Aditya 1_27_2026/Pheno Batch 4/Phenotyping 4 Worksheet 2.xlsx` (relative to this folder). Place the file there before running.
+> The app reads the four workbooks from `data/` in this folder
+> (`Phenotyping 4 Worksheet 1/2.xlsx`, `Pheno 4 Worksheet 3.xlsx`,
+> `Pheno Merged Data.xlsx`). They ship with the repo.
+
+Run the tests:
+
+```bash
+pip install -r requirements-dev.txt   # adds pytest + offline GIF-generator deps
+pytest -q
+```
+
+---
+
+## Deploy to Google Cloud Run
+
+The data workbooks in `data/` are gitignored but **are** baked into the
+container image at build time (`.gcloudignore` / `.dockerignore` explicitly
+keep them, overriding `.gitignore`). Deploy from a machine that has the
+`data/` folder populated:
+
+```bash
+gcloud run deploy veryberry-analytics \
+  --source . \
+  --region <your-region> \
+  --memory 1Gi \
+  --allow-unauthenticated   # drop this flag to keep it private
+```
+
+Notes:
+- Startup does a one-time Excel ingest + stats computation (~15–60s
+  depending on CPU). Cloud Run's default startup probe window (240s)
+  covers this, but if you see cold-start 429s, raise `--timeout` or set
+  `--min-instances 1` to avoid scale-to-zero cold starts entirely.
+- The container runs `gunicorn --preload --workers 2 --threads 4` (see
+  `Dockerfile`) — `--preload` loads the data once in the master process
+  before forking workers, so workers don't each re-parse the workbooks.
+- Locally, `docker build -t veryberry . && docker run -p 8080:8080 -e PORT=8080 veryberry`
+  reproduces the exact Cloud Run environment.
 
 ---
 
@@ -113,7 +150,16 @@ Select a trait and a date for a full statistical comparison:
 - **Champion table** — each cultivar's season trend (↑↓→), peak value and date, and champion win % (% of significant dates where CLD = "a")
 
 ### 5. Plant Animation
-A scroll-driven SVG schematic of a strawberry plant drawn from actual trait values. Crown size, stolon count/length, daughter plant positions, and flower count are all anchored to measurements. Play/pause animates through measurement dates to show how plant architecture changes over the season.
+A date-driven SVG schematic of a strawberry plant's stolon network, grown node-by-node from actual Worksheet 1 and Worksheet 3 measurements. Play/pause steps through measurement dates; a collapsible data table below the animation shows per-plant measurements for the current date.
+
+**Implementation — live dashboard** (`src/plant_arch.py`):
+- **D3.js v7** — SVG tree layout (`d3.hierarchy`, `d3.tree`), animated Bézier stolon links, entrance transitions, tooltip rendering
+- **Python / Dash** — builds the full D3 hierarchy from Excel data server-side and delivers a self-contained HTML + JSON payload via `html.Iframe(srcDoc=...)`
+
+**Implementation — offline GIF generator** (`plant_animation/generate_animations.py`):
+- **matplotlib** — renders the final complete scene once at full resolution
+- **Pillow (PIL)** — composites frames incrementally onto a persistent canvas and saves as an animated GIF (~12 fps)
+- **NumPy / pandas** — coordinate layout calculations and Excel ingestion
 
 ### 6. Export & Methods
 Download four CSV files (`pheno4_clean`, `pheno4_long`, `pheno4_stats`, `pheno4_season`) and view full statistical methods documentation with citations.

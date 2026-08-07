@@ -11,6 +11,7 @@ import plotly.graph_objects as go
 from dash import Input, Output, callback, dcc, html
 
 import src.data_cache as cache
+from src.ui import GRAPH_CONFIG
 from src.etl import BATCH_A, BATCH_B, TRAIT_COLS, TRAIT_LABELS
 from src.stats import sig_label
 
@@ -40,64 +41,66 @@ def _dotplot(result):
     n = len(sorted_cvs)
     fig = go.Figure()
 
+    # ── Alternating row bands ─────────────────────────────────────────────────
+    for rank in range(n):
+        if rank % 2 == 1:
+            fig.add_shape(type="rect", layer="below",
+                x0=0, x1=1, xref="paper",
+                y0=rank - 0.5, y1=rank + 0.5, yref="y",
+                fillcolor="rgba(0,0,0,0.025)", line_width=0)
+
+    # ── Data traces ───────────────────────────────────────────────────────────
     for rank, cv in enumerate(sorted_cvs):
         color  = CV_COLOR.get(cv, "#888")
         vals   = result.raw_values.get(cv, [])
         mean_v = result.means.get(cv, np.nan)
         se_v   = result.se.get(cv, 0.0)
 
-        # SE bar
-        fig.add_trace(go.Scatter(
+        fig.add_trace(go.Scatter(           # SE bar
             x=[mean_v - se_v, mean_v + se_v], y=[rank, rank],
             mode="lines", line=dict(color=color, width=3),
-            showlegend=False, hoverinfo="skip",
-        ))
-        # Rep dots
-        for k, v in enumerate(vals):
+            showlegend=False, hoverinfo="skip"))
+
+        for k, v in enumerate(vals):        # rep dots
             off = REP_OFF[k] if k < len(REP_OFF) else 0.0
             fig.add_trace(go.Scatter(
                 x=[v], y=[rank + off], mode="markers",
-                marker=dict(size=10, color=color, opacity=0.75,
+                marker=dict(size=9, color=color, opacity=0.7,
                             line=dict(width=1, color="white")),
                 showlegend=False,
-                hovertemplate=f"<b>{cv}</b> rep {k+1}: %{{x:.2f}}<extra></extra>",
-            ))
-        # Mean diamond
-        fig.add_trace(go.Scatter(
+                hovertemplate=f"<b>{cv}</b> rep {k+1}: %{{x:.2f}}<extra></extra>"))
+
+        fig.add_trace(go.Scatter(           # mean diamond
             x=[mean_v], y=[rank], mode="markers", name=cv, showlegend=False,
-            marker=dict(size=14, color=color, symbol="diamond",
+            marker=dict(size=15, color=color, symbol="diamond",
                         line=dict(width=1.5, color="white")),
-            hovertemplate=f"<b>{cv}</b><br>Mean: %{{x:.2f}}<br>±SE: {se_v:.2f}<extra></extra>",
-        ))
+            hovertemplate=f"<b>{cv}</b><br>Mean: %{{x:.2f}}<br>±SE: {se_v:.2f}<extra></extra>"))
 
-    # CLD letters
-    for rank, cv in enumerate(sorted_cvs):
-        letter   = result.cld.get(cv, "")
-        is_best  = result.significant and "a" in letter
-        fig.add_annotation(
-            x=-0.02, y=rank, xref="paper", yref="y",
-            text=f"<b>{letter}</b>" if is_best else letter,
-            showarrow=False, xanchor="right",
-            font=dict(size=13, color="#2d7a45" if is_best else "#666"),
-        )
+    # ── CLD letter baked into the tick label: "Portola · a" ──────────────────
+    # This is the only approach that cannot overlap with plot content at any
+    # figure width, since the tick label lives entirely in the left margin.
+    tick_labels = [
+        f"{cv} · {result.cld.get(cv, '')}" for cv in sorted_cvs
+    ]
 
-    # Best-group star
+    # ── Best-group star — right margin only, safe at any width ───────────────
     if result.significant:
         for rank, cv in enumerate(sorted_cvs):
             if "a" in result.cld.get(cv, ""):
                 fig.add_annotation(
-                    x=1.01, y=rank, xref="paper", yref="y",
-                    text="★", showarrow=False, font=dict(size=15, color="#E69F00"),
-                )
+                    x=1.02, y=rank, xref="paper", yref="y",
+                    text="★", showarrow=False, xanchor="left",
+                    font=dict(size=14, color="#E69F00"))
 
     fig.update_layout(
         height=max(280, n * 54 + 60),
-        margin=dict(l=140, r=50, t=30, b=50),
+        margin=dict(l=175, r=50, t=30, b=50),
         plot_bgcolor="white", paper_bgcolor="white",
         xaxis=dict(title=TRAIT_LABELS.get(result.trait, result.trait),
                    showgrid=True, gridcolor="#f0f0f0", zeroline=False),
-        yaxis=dict(tickvals=list(range(n)), ticktext=sorted_cvs, showgrid=False),
-        font=dict(family="Inter, sans-serif", size=12),
+        yaxis=dict(tickvals=list(range(n)), ticktext=tick_labels,
+                   showgrid=False, tickfont=dict(size=12)),
+        font=dict(family="IBM Plex Sans, Helvetica, Arial, sans-serif", size=12),
         hovermode="closest",
     )
     return fig
@@ -210,7 +213,7 @@ layout = html.Div([
                 html.H3("Cultivar Comparison", className="card-title"),
                 html.P("Diamond = mean · Bar = ±SE · Dots = replicates · Letter = CLD group",
                        className="card-subtitle"),
-                dcc.Graph(id="dc-plot", config={"displayModeBar": "hover"}),
+                dcc.Graph(id="dc-plot", config=GRAPH_CONFIG),
             ]),
             html.Div(className="dc-stats card", children=[
                 html.H3("Statistics", className="card-title"),

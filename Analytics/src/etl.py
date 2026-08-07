@@ -22,7 +22,7 @@ import openpyxl
 import pandas as pd
 
 ROOT     = Path(__file__).resolve().parent.parent          # Analytics/
-XLSX     = ROOT / "Phenotyping 4 Worksheet 2.xlsx"
+XLSX     = ROOT / "data" / "Phenotyping 4 Worksheet 2.xlsx"
 OUT_CSV  = ROOT / "data" / "processed" / "pheno4_clean.csv"
 OUT_CSV.parent.mkdir(parents=True, exist_ok=True)
 

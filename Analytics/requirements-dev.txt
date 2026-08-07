@@ -1,0 +1,8 @@
+# Dev-only: test suite + offline GIF generator (plant_animation/generate_animations.py).
+# Not needed by the running web app — kept out of requirements.txt to keep the
+# Cloud Run image small and the build fast.
+-r requirements.txt
+pytest==9.1.1
+matplotlib==3.11.0
+pillow==12.3.0
+seaborn==0.13.2

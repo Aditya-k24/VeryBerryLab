@@ -12,6 +12,7 @@ import plotly.graph_objects as go
 from dash import Input, Output, callback, dcc, html
 
 import src.data_cache as cache
+from src.ui import GRAPH_CONFIG
 from src.etl import BATCH_A, BATCH_B, TRAIT_COLS, TRAIT_LABELS
 from src.stats import sig_label
 
@@ -79,7 +80,7 @@ def _heatmap(stats_cache, df):
         plot_bgcolor="white", paper_bgcolor="white",
         xaxis=dict(tickangle=-45),
         yaxis=dict(autorange="reversed"),
-        font=dict(family="Inter, sans-serif", size=11),
+        font=dict(family="IBM Plex Sans, Helvetica, Arial, sans-serif", size=11),
     )
     return fig
 
@@ -149,7 +150,7 @@ layout = html.Div([
             html.P("Colour intensity = ε². Annotations = significance stars. "
                    "Dotted line = Batch B boundary.",
                    className="card-subtitle"),
-            dcc.Graph(id="ss-heatmap", config={"displayModeBar": "hover"}),
+            dcc.Graph(id="ss-heatmap", config=GRAPH_CONFIG),
         ]),
 
         html.Div(className="card", children=[

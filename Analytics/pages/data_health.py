@@ -13,6 +13,7 @@ import plotly.graph_objects as go
 from dash import Input, Output, callback, dcc, html
 
 import src.data_cache as cache
+from src.ui import GRAPH_CONFIG
 from src.etl import BATCH_A, BATCH_B, TRAIT_COLS, TRAIT_LABELS
 
 dash.register_page(__name__, path="/", name="Data Health", order=0)
@@ -21,23 +22,6 @@ dash.register_page(__name__, path="/", name="Data Health", order=0)
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-def _summary_cards(df):
-    miss_pct = df[TRAIT_COLS].isna().mean().mean() * 100
-    items = [
-        ("Cultivars",    str(df["cultivar"].nunique()),  "card-blue"),
-        ("Dates",        str(df["date"].nunique()),      "card-green"),
-        ("Traits",       str(len(TRAIT_COLS)),           "card-purple"),
-        ("Observations", str(len(df)),                   "card-orange"),
-        ("Missing",      f"{miss_pct:.1f}%",             "card-red"),
-    ]
-    return html.Div(className="summary-row", children=[
-        html.Div(className=f"summary-card {cls}", children=[
-            html.Div(val,   className="summary-val"),
-            html.Div(label, className="summary-label"),
-        ]) for label, val, cls in items
-    ])
-
 
 def _timeline_fig(df):
     colors = {"A": "#56B4E9", "B": "#E69F00"}
@@ -62,7 +46,7 @@ def _timeline_fig(df):
         xaxis=dict(tickformat="%d %b", showgrid=True, gridcolor="#f0f0f0"),
         yaxis=dict(autorange="reversed"),
         legend=dict(orientation="h", x=0.5, xanchor="center", y=-0.22),
-        font=dict(family="Inter, sans-serif", size=12),
+        font=dict(family="IBM Plex Sans, Helvetica, Arial, sans-serif", size=12),
     )
     return fig
 
@@ -110,7 +94,7 @@ def _completeness_fig(df, selected_trait):
         plot_bgcolor="white", paper_bgcolor="white",
         xaxis=dict(tickangle=-40),
         yaxis=dict(autorange="reversed"),
-        font=dict(family="Inter, sans-serif", size=12),
+        font=dict(family="IBM Plex Sans, Helvetica, Arial, sans-serif", size=12),
     )
     return fig
 
@@ -119,20 +103,50 @@ def _completeness_fig(df, selected_trait):
 # Layout
 # ---------------------------------------------------------------------------
 
+def _hero():
+    df = cache.df_clean
+    n_cv = df["cultivar"].nunique() if not df.empty else 0
+    n_dt = df["date"].nunique() if not df.empty else 0
+    n_ob = len(df)
+    n_tr = len(TRAIT_COLS)
+    span = (f"{df['date'].min():%b} – {df['date'].max():%b %Y}" if not df.empty else "")
+    complete = (100 - df[TRAIT_COLS].isna().mean().mean() * 100) if not df.empty else 0
+    chip = lambda v, l: html.Div(className="hero-chip", children=[html.B(str(v)), html.Span(l)])
+    return html.Div(className="hero", children=[
+        html.Div(className="hero-glow"),
+        html.Div(className="hero-glow two"),
+        html.Div("VeryBerryLab · Phenotyping Batch 4", className="hero-eyebrow"),
+        html.H1(className="hero-title", children=[
+            "Strawberry ", html.Span("phenotyping", className="accent"), " analytics"]),
+        html.P("Vegetative and reproductive architecture of eleven strawberry "
+               "cultivars across a full growing season — ingestion, statistics, "
+               "and publication-ready figures in one place.",
+               className="hero-sub"),
+        html.Div(className="hero-stats", children=[
+            chip(n_cv, "Cultivars"), chip(n_dt, "Dates"),
+            chip(n_tr, "Traits"), chip(n_ob, "Observations"),
+            chip(f"{complete:.0f}%", "Complete"), chip(span, "Season"),
+        ]),
+        html.Div(className="hero-cta", children=[
+            dcc.Link("Explore traits →", href="/trait-explorer",
+                     className="hero-btn hero-btn-primary"),
+            dcc.Link("Compare cultivars", href="/date-compare",
+                     className="hero-btn hero-btn-ghost"),
+            dcc.Link("Methods & export", href="/export",
+                     className="hero-btn hero-btn-ghost"),
+        ]),
+    ])
+
+
 layout = html.Div([
-    html.Div(className="page-header", children=[
-        html.H1("Data Health", className="page-title"),
-        html.P("Cultivar roster, batch schedule, and measurement completeness.",
-               className="page-subtitle"),
-    ]),
     html.Div(className="content-area", children=[
 
-        html.Div(id="dh-cards"),
+        _hero(),
 
         html.Div(className="card", children=[
             html.H3("Measurement Timeline", className="card-title"),
             html.P("Each diamond = one measurement date.", className="card-subtitle"),
-            dcc.Graph(id="dh-timeline", config={"displayModeBar": False}),
+            dcc.Graph(id="dh-timeline", config=GRAPH_CONFIG),
         ]),
 
         html.Div(className="card", children=[
@@ -154,7 +168,7 @@ layout = html.Div([
                 html.Span(className="leg-dot", style={"background": "#e8e8e8"}),
                 html.Span("Not scheduled", className="leg-label"),
             ]),
-            dcc.Graph(id="dh-completeness", config={"displayModeBar": False}),
+            dcc.Graph(id="dh-completeness", config=GRAPH_CONFIG),
         ]),
 
         html.Div(className="card", children=[
@@ -172,11 +186,9 @@ layout = html.Div([
 # Callbacks
 # ---------------------------------------------------------------------------
 
-@callback(Output("dh-cards", "children"), Output("dh-timeline", "figure"),
-          Input("url", "pathname"))
+@callback(Output("dh-timeline", "figure"), Input("url", "pathname"))
 def render_static(_):
-    df = cache.df_clean
-    return _summary_cards(df), _timeline_fig(df)
+    return _timeline_fig(cache.df_clean)
 
 
 @callback(Output("dh-completeness", "figure"), Input("dh-trait", "value"))
