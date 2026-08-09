@@ -39,6 +39,7 @@ def _state_table(cultivar, date):
     all_dates = ws1_cv.get("dates", [])
     sel_dates = all_dates if date in (None, "all") else [date]
     show_date = date in (None, "all")
+    day0 = pd.Timestamp(min(all_dates)) if all_dates else None
 
     rows = []
     for d in sel_dates:
@@ -47,7 +48,7 @@ def _state_table(cultivar, date):
             if not rec:
                 continue
             row = {"_d": d,
-                   "date": pd.Timestamp(d).strftime("%d %b %Y"),
+                   "date": f"Day {(pd.Timestamp(d) - day0).days}" if day0 is not None else "",
                    "mother": f"M{c.split('.')[0]}",
                    "code": c}
             for k, _ in _STATE_COLS:
@@ -65,12 +66,12 @@ def _state_table(cultivar, date):
     # keep only measurement columns that carry a real (non-zero, non-null) value
     active = [(k, lbl) for k, lbl in _STATE_COLS
               if any(r.get(k) not in (None, 0) for r in rows)]
-    base = ([("date", "Date")] if show_date else []) + [("mother", "Mother"), ("code", "Code")]
+    base = ([("date", "Day")] if show_date else []) + [("mother", "Mother"), ("code", "Code")]
     columns = [{"name": lbl, "id": k} for k, lbl in base + active]
     keep = [k for k, _ in base + active]
     data = [{k: r.get(k) for k in keep} for r in rows]
 
-    when = "all dates" if show_date else pd.Timestamp(date).strftime("%d %b %Y")
+    when = "all days" if show_date else f"Day {(pd.Timestamp(date) - day0).days}"
     return html.Div([
         html.P(f"{cultivar} · {when} · {len(rows)} plantlet-measurements · "
                f"{n_mothers} mother{'s' if n_mothers != 1 else ''}",
@@ -81,7 +82,7 @@ def _state_table(cultivar, date):
             export_format="csv", export_headers="display", page_size=15,
             style_as_list_view=True,
             style_table={"overflowX": "auto"},
-            style_cell={"fontFamily": "IBM Plex Sans, Helvetica, Arial, sans-serif", "fontSize": "12.5px",
+            style_cell={"fontFamily": "Work Sans, Helvetica, Arial, sans-serif", "fontSize": "12.5px",
                         "padding": "7px 14px 7px 0", "textAlign": "left",
                         "backgroundColor": "white", "border": "none"},
             style_header={"backgroundColor": "white", "color": "#99a",
@@ -172,12 +173,12 @@ layout = html.Div([
     # ── Bottom half: pick a date, see that state's measurements ───────────────
     html.Div(className="card", children=[
         html.Details([
-            html.Summary("State Data — Worksheet 1 measurements",
+            html.Summary("State Data · Worksheet 1 measurements",
                          style={"cursor": "pointer", "fontSize": "15px",
                                 "fontWeight": "700", "color": "#14213d"}),
             html.Div(style={"marginTop": "14px"}, children=[
                 html.Div(className="filter-row", children=[
-                    html.Label("Date", className="filter-label"),
+                    html.Label("Day", className="filter-label"),
                     dcc.Dropdown(id="pa2-date", clearable=False,
                                  style={"width": "220px"}),
                 ]),
@@ -210,8 +211,9 @@ def init_dropdown(_):
 )
 def upd_date_options(cultivar):
     dates = cache.ws1_data.get(cultivar, {}).get("dates", []) if cultivar else []
-    opts = [{"label": "All dates", "value": "all"}] + \
-           [{"label": pd.Timestamp(d).strftime("%d %b %Y"), "value": d} for d in dates]
+    day0 = pd.Timestamp(min(dates)) if dates else None
+    opts = [{"label": "All days", "value": "all"}] + \
+           [{"label": f"Day {(pd.Timestamp(d) - day0).days}", "value": d} for d in dates]
     return opts, "all"
 
 

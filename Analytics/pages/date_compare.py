@@ -15,7 +15,7 @@ from src.ui import GRAPH_CONFIG
 from src.etl import BATCH_A, BATCH_B, TRAIT_COLS, TRAIT_LABELS
 from src.stats import sig_label
 
-dash.register_page(__name__, path="/date-compare", name="Date Compare", order=2)
+dash.register_page(__name__, path="/date-compare", name="Day Compare", order=2)
 
 PALETTE  = ["#E69F00","#56B4E9","#009E73","#F0E442","#0072B2",
             "#D55E00","#CC79A7","#000000","#AA4499","#44BB99","#BBCC33"]
@@ -100,7 +100,7 @@ def _dotplot(result):
                    showgrid=True, gridcolor="#f0f0f0", zeroline=False),
         yaxis=dict(tickvals=list(range(n)), ticktext=tick_labels,
                    showgrid=False, tickfont=dict(size=12)),
-        font=dict(family="IBM Plex Sans, Helvetica, Arial, sans-serif", size=12),
+        font=dict(family="Work Sans, Helvetica, Arial, sans-serif", size=12),
         hovermode="closest",
     )
     return fig
@@ -139,7 +139,7 @@ def _stats_panel(result):
             html.P("★ = best group (letter 'a').", className="cld-info"),
         ]),
         html.Div(
-            "KW not significant — post-hoc shown for exploration only.",
+            "KW not significant, post-hoc shown for exploration only.",
             className="exploratory-notice",
             style={"display": "none" if sig else "block"},
         ),
@@ -157,7 +157,7 @@ def _pairwise_table(result):
         cells = [html.Td(ci, className="ph-row")]
         for cj in cvs:
             if ci == cj:
-                cells.append(html.Td("—", className="ph-cell ph-diag"))
+                cells.append(html.Td("-", className="ph-cell ph-diag"))
             else:
                 try:
                     p = float(ph.loc[ci, cj])
@@ -165,7 +165,7 @@ def _pairwise_table(result):
                     cells.append(html.Td(f"{p:.3f}",
                                          className=f"ph-cell {'ph-sig' if sig else ''}"))
                 except Exception:
-                    cells.append(html.Td("—", className="ph-cell"))
+                    cells.append(html.Td("-", className="ph-cell"))
         rows.append(html.Tr(cells))
     return html.Div(className="pw-wrap", children=[
         html.P(f"Holm-adjusted Conover–Iman p-values. Highlighted = significant at α={result.alpha}.",
@@ -174,14 +174,47 @@ def _pairwise_table(result):
     ])
 
 
+def _day_key_table():
+    """Reference only: which "Day N" (Batch A / Batch B) is which actual
+    calendar date, so the elapsed-day convention used everywhere on the
+    site can still be checked against the source workbook."""
+    df = cache.df_clean
+    if df.empty:
+        return html.Div("No data available.", className="stats-empty")
+    batch_start = {b: df[df["batch"] == b]["date"].min() for b in ("A", "B")}
+    seen, rows_raw = set(), []
+    for _, r in df.sort_values("date").iterrows():
+        key = (r["batch"], r["date"])
+        if key in seen:
+            continue
+        seen.add(key)
+        day = (pd.Timestamp(r["date"]) - batch_start[r["batch"]]).days
+        rows_raw.append((r["batch"], day, pd.Timestamp(r["date"])))
+    rows_raw.sort(key=lambda t: (t[0], t[1]))
+
+    header = html.Tr([html.Th("Batch"), html.Th("Day"), html.Th("Actual date"),
+                       html.Th("Cultivars")])
+    rows = []
+    for batch, day, date in rows_raw:
+        cvs = sorted(df[(df["batch"] == batch) & (df["date"] == date)]["cultivar"].unique())
+        rows.append(html.Tr([
+            html.Td(batch),
+            html.Td(f"Day {day}", style={"fontFamily": "var(--mono)", "fontWeight": "600"}),
+            html.Td(date.strftime("%d %b %Y")),
+            html.Td(", ".join(cvs), style={"color": "var(--muted)", "fontSize": "12px"}),
+        ]))
+    return html.Table(className="champ-table",
+                       children=[html.Thead(header), html.Tbody(rows)])
+
+
 # ---------------------------------------------------------------------------
 # Layout
 # ---------------------------------------------------------------------------
 
 layout = html.Div([
     html.Div(className="page-header", children=[
-        html.H1("Date Compare", className="page-title"),
-        html.P("Compare cultivars on a chosen date — KW test, effect size ε², "
+        html.H1("Day Compare", className="page-title"),
+        html.P("Compare cultivars on a chosen day: KW test, effect size ε², "
                "CLD grouping letters, and pairwise post-hoc.",
                className="page-subtitle"),
     ]),
@@ -195,7 +228,7 @@ layout = html.Div([
                                                 for t in TRAIT_COLS],
                                        value="n_stolon_primary", clearable=False,
                                        style={"width": "280px"})]),
-                html.Div([html.Label("Date", className="filter-label"),
+                html.Div([html.Label("Day", className="filter-label"),
                           dcc.Dropdown(id="dc-date", clearable=False,
                                        style={"width": "200px"})]),
                 html.Div([html.Label("α level", className="filter-label"),
@@ -228,6 +261,14 @@ layout = html.Div([
                 html.Div(id="dc-pw"),
             ]),
         ]),
+
+        html.Div(className="card", children=[
+            html.Details([
+                html.Summary("Day Index",
+                             style={"cursor": "pointer", "fontWeight": "600"}),
+                html.Div(style={"marginTop": "12px"}, children=[_day_key_table()]),
+            ]),
+        ]),
     ]),
 ])
 
@@ -241,9 +282,14 @@ layout = html.Div([
 def upd_dates(trait):
     if not trait:
         return [], None
-    dates = sorted(cache.df_clean[cache.df_clean[trait].notna()]["date"].unique())
-    opts  = [{"label": pd.Timestamp(d).strftime("%d %b %Y"), "value": str(d)[:10]}
-             for d in dates]
+    df = cache.df_clean
+    dates = sorted(df[df[trait].notna()]["date"].unique())
+    # "Day N since its own batch's first measurement" instead of a calendar
+    # date — batch-prefixed since both batches share this one dropdown.
+    batch_start = {b: df[df["batch"] == b]["date"].min() for b in ("A", "B")}
+    date_batch  = {d: df[df["date"] == d]["batch"].iloc[0] for d in dates}
+    opts = [{"label": f"{date_batch[d]} · Day {(pd.Timestamp(d) - batch_start[date_batch[d]]).days}",
+             "value": str(d)[:10]} for d in dates]
     return opts, (opts[-1]["value"] if opts else None)
 
 

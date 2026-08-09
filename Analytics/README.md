@@ -1,6 +1,6 @@
-# VeryBerryLab — Pheno 4 Dashboard
+# VeryBerryLab — Strawberry Trait Analysis
 
-An interactive research dashboard for strawberry phenotyping data. Tracks the vegetative and reproductive architecture of 11 strawberry cultivars across a full growing season (April–July 2025).
+An interactive research dashboard for strawberry trait data. Tracks the vegetative and reproductive architecture of 11 strawberry cultivars across a full growing season (April–July 2025).
 
 **11 cultivars · 12 measurement dates · 3 replicates · 19 traits · 198 observations**
 
@@ -8,7 +8,7 @@ An interactive research dashboard for strawberry phenotyping data. Tracks the ve
 
 ## What This Is
 
-A multi-page [Dash](https://dash.plotly.com/) application for exploring, visualising, and statistically analysing **Phenotyping Batch 4** strawberry data, built for the VeryBerryLab to support cultivar selection and propagation decisions.
+A multi-page [Dash](https://dash.plotly.com/) application for exploring, visualising, and statistically analysing **Trait Batch 4** strawberry data, built for the VeryBerryLab to support cultivar selection and propagation decisions.
 
 The dashboard answers questions like:
 - Which cultivars produce the most stolons (runners) at each point in the season?
@@ -102,7 +102,7 @@ Two staggered measurement batches:
 
 | Batch | Cultivars |
 |-------|-----------|
-| **A** | Albion, Cabrio, Camarosa\*, Chandler, Finn, Sensation |
+| **A** | Albion, Cabrillo, Camarosa\*, Chandler, Finn, Sensation |
 | **B** | Brilliance, Moxie, Portola, Radiance, Ruby June |
 
 Each cultivar is measured on **6 of the 12 total dates** in the season. Batch A and B do not share all dates — this is intentional scheduling, not missing data.

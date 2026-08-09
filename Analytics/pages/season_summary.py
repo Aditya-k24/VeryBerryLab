@@ -26,7 +26,12 @@ dash.register_page(__name__, path="/season-summary", name="Season Summary", orde
 def _heatmap(stats_cache, df):
     all_dates  = sorted(df["date"].unique())
     date_strs  = [str(d)[:10] for d in all_dates]
-    date_lbls  = [pd.Timestamp(d).strftime("%d %b") for d in all_dates]
+    # "Day N since its own batch's first measurement" instead of a calendar
+    # date — batch-prefixed since Batch A and B share this one axis.
+    batch_start = {b: df[df["batch"] == b]["date"].min() for b in ("A", "B")}
+    date_batch  = {d: df[df["date"] == d]["batch"].iloc[0] for d in all_dates}
+    date_lbls   = [f"{date_batch[d]} · Day {(pd.Timestamp(d) - batch_start[date_batch[d]]).days}"
+                   for d in all_dates]
 
     z     = np.full((len(TRAIT_COLS), len(all_dates)), np.nan)
     annot = [[""] * len(all_dates) for _ in TRAIT_COLS]
@@ -42,7 +47,7 @@ def _heatmap(stats_cache, df):
             annot[ti][di] = lbl if lbl != "ns" else ""
             hover[ti][di] = (
                 f"<b>{TRAIT_LABELS.get(trait, trait)}</b><br>"
-                f"{pd.Timestamp(ds).strftime('%d %b %Y')}<br>"
+                f"{date_lbls[di]}<br>"
                 f"ε² = {r.epsilon2:.3f}<br>p = {r.kw_p:.4f} ({lbl})"
             )
 
@@ -80,7 +85,7 @@ def _heatmap(stats_cache, df):
         plot_bgcolor="white", paper_bgcolor="white",
         xaxis=dict(tickangle=-45),
         yaxis=dict(autorange="reversed"),
-        font=dict(family="IBM Plex Sans, Helvetica, Arial, sans-serif", size=11),
+        font=dict(family="Work Sans, Helvetica, Arial, sans-serif", size=11),
     )
     return fig
 
@@ -100,16 +105,20 @@ def _champ_table(season_metrics, trait):
 
     icon  = {"up": "↑", "down": "↓", "flat": "→"}
     color = {"up": "#2d7a45", "down": "#c62828", "flat": "#666"}
+    raw = cache.df_clean
+    batch_start = {b: raw[raw["batch"] == b]["date"].min() for b in ("A", "B")}
 
     rows = []
     for _, row in df_t.iterrows():
+        cv_batch = "A" if row["cultivar"] in BATCH_A else "B"
         peak_str = (
-            f"{row['peak_value']:.2f} ({pd.Timestamp(row['peak_date']).strftime('%d %b')})"
-            if pd.notna(row["peak_value"]) and row["peak_date"] is not None else "—"
+            f"{row['peak_value']:.2f} "
+            f"(Day {(pd.Timestamp(row['peak_date']) - batch_start[cv_batch]).days})"
+            if pd.notna(row["peak_value"]) and row["peak_date"] is not None else "-"
         )
         champ_str = (
             f"{row['champion_pct']:.0f}% ({int(row['champion_wins'])}/{int(row['total_sig_dates'])})"
-            if pd.notna(row["champion_pct"]) else "—"
+            if pd.notna(row["champion_pct"]) else "-"
         )
         rows.append(html.Tr([
             html.Td(row["cultivar"], className="champ-cv"),

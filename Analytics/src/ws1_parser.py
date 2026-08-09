@@ -49,7 +49,7 @@ WS1_CANDIDATES: list[Path] = [
 
 WS1_SHEET_MAP: dict[str, str] = {
     "Fin":   "Finn",
-    "Cab":   "Cabrio",
+    "Cab":   "Cabrillo",
     "Cam":   "Camarosa",
     "Sen":   "Sensation",
     "Cha":   "Chandler",

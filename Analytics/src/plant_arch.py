@@ -51,7 +51,7 @@ WS3_SHEET_MAP: dict[str, str] = {
     "RJUNE": "Ruby June",
     "FINN":  "Finn",
     "BRI":   "Brilliance",
-    "CAB":   "Cabrio",
+    "CAB":   "Cabrillo",
     "MOX":   "Moxie",
 }
 SKIP_SHEETS = {"misc. dry matter", "por"}
@@ -439,12 +439,12 @@ _JS_TEMPLATE = """\
 <head>
 <meta charset="utf-8">
 <title>Strawberry Plant Architecture</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <script src="https://d3js.org/d3.v7.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden;
-  font-family:'Inter','Segoe UI',system-ui,sans-serif}
+  font-family:'Work Sans','Segoe UI',system-ui,sans-serif}
 body{background:#f4f1ea;color:#2c3e50;display:flex;flex-direction:column}
 
 #ctrl{
@@ -557,11 +557,11 @@ svg{width:100%;height:100%;min-height:400px;display:block;cursor:default}
 
 <div id="ctrl" role="toolbar" aria-label="Playback controls">
   <span id="cv-badge">__CULTIVAR__ &middot; M__MOTHER__</span>
-  <button class="btn" id="b-prev" aria-label="Previous date">&#9664;</button>
+  <button class="btn" id="b-prev" aria-label="Previous day">&#9664;</button>
   <button class="btn primary" id="b-play" aria-label="Play">&#9654; Play</button>
-  <button class="btn" id="b-next" aria-label="Next date">&#9654;</button>
-  <span id="date-badge" role="status" aria-live="polite">—</span>
-  <div id="prog-track" role="slider" aria-label="Date timeline"
+  <button class="btn" id="b-next" aria-label="Next day">&#9654;</button>
+  <span id="date-badge" role="status" aria-live="polite">-</span>
+  <div id="prog-track" role="slider" aria-label="Day timeline"
        aria-valuemin="0" aria-valuenow="0" tabindex="0">
     <div id="prog-fill"></div>
     <div id="prog-thumb"></div>
@@ -761,15 +761,17 @@ fitView();
 const ttEl=document.getElementById('tooltip');
 
 function fmtDate(iso){
-  try{return new Date(iso).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}
-  catch(e){return iso;}
+  try{
+    const days=Math.round((new Date(iso)-new Date(DATA.dates[0]))/86400000);
+    return 'Day '+days;
+  }catch(e){return iso;}
 }
 
 function showTip(event,d){
   let html='';
   if(d.data.type==='crown'){
     html=`<div class="tt-code">${d.data.label||'Crown'}</div>
-      <div class="tt-date">Mother plant — root of stolon network</div>`;
+      <div class="tt-date">Mother plant, root of stolon network</div>`;
   } else {
     const code=d.data.code||'';
     const oNames=['','Primary','Secondary','Tertiary','Quaternary'];
@@ -909,7 +911,7 @@ function buildTable(){
     h+='<tr>'+active.map(([k])=>{
       if(k==='code')return`<td>${code}</td>`;
       const v=r[k];
-      if(v==null)return'<td style="color:#ccc">—</td>';
+      if(v==null)return'<td style="color:#ccc">-</td>';
       if(typeof v==='number')return`<td>${Number.isInteger(v)?v:v.toFixed(1)}</td>`;
       return`<td>${v}</td>`;
     }).join('')+'</tr>';

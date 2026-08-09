@@ -32,7 +32,7 @@ OUT_CSV.parent.mkdir(parents=True, exist_ok=True)
 
 CULTIVAR_MAP = {
     "Fin":   "Finn",
-    "Cab":   "Cabrio",
+    "Cab":   "Cabrillo",
     "Cam":   "Camarosa",   # provisional — confirm with team
     "Sen":   "Sensation",
     "Cha":   "Chandler",
@@ -45,7 +45,7 @@ CULTIVAR_MAP = {
     "Rad":   "Radiance",
 }
 
-BATCH_A = {"Albion", "Cabrio", "Camarosa", "Chandler", "Finn", "Sensation"}
+BATCH_A = {"Albion", "Cabrillo", "Camarosa", "Chandler", "Finn", "Sensation"}
 BATCH_B = {"Brilliance", "Moxie", "Portola", "Radiance", "Ruby June"}
 
 TRAIT_MAP = {

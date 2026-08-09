@@ -33,7 +33,7 @@ MERGED_CV_MAP: dict[str, str] = {
     "Alb":    "Albion",
     "R June": "Ruby June",
     "Mox":    "Moxie",
-    "Cab":    "Cabrio",
+    "Cab":    "Cabrillo",
     "Rad":    "Radiance",
 }
 

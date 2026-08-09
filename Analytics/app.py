@@ -1,7 +1,7 @@
 """
 app.py — VeryBerryLab Analytics Dashboard
 ==========================================
-Multi-page Dash application for strawberry phenotyping analysis.
+Multi-page Dash application for strawberry trait analysis.
 
 Run from the Analytics/ directory:
     python3 app.py
@@ -26,12 +26,12 @@ app = Dash(
     __name__,
     use_pages=True,
     suppress_callback_exceptions=True,
-    title="VeryBerryLab — Phenotyping Analytics",
+    title="VeryBerryLab · Strawberry Trait Analysis",
     external_stylesheets=[
         "https://fonts.googleapis.com/css2?"
-        "family=IBM+Plex+Serif:wght@500;600;700&"
-        "family=IBM+Plex+Sans:wght@400;500;600;700&"
-        "family=IBM+Plex+Mono:wght@400;500;600&display=swap",
+        "family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&"
+        "family=Work+Sans:wght@400;500;600;700&"
+        "family=Space+Mono:wght@400;700&display=swap",
     ],
 )
 server = app.server
@@ -65,7 +65,7 @@ NAV_GROUPS = [
         ("Plant Animation", "/plant-animation", "plant"),
     ]),
     ("Analyze", [
-        ("Date Compare",    "/date-compare",    "compare"),
+        ("Day Compare",     "/date-compare",    "compare"),
         ("Season Summary",  "/season-summary",  "season"),
         ("Cross-Batch",     "/cross-batch",     "batch"),
     ]),
@@ -81,12 +81,12 @@ NAV = [item for _, items in NAV_GROUPS for item in items]
 def _dataset_meta():
     df = cache.df_clean
     if df is None or df.empty:
-        return "Phenotyping dataset", ""
+        return "Trait dataset", ""
     n_cv = df["cultivar"].nunique()
     n_obs = len(df)
     d0, d1 = df["date"].min(), df["date"].max()
-    span = f"{d0.strftime('%b %Y')} – {d1.strftime('%b %Y')}"
-    return "Phenotyping Batch 4", f"{n_cv} cultivars · {n_obs} observations · {span}"
+    span = f"{(d1 - d0).days}-day season"
+    return "Trait Analysis · Batch 4", f"{n_cv} cultivars · {n_obs} observations · {span}"
 
 
 _TITLE, _META = _dataset_meta()
@@ -113,7 +113,7 @@ app.layout = html.Div(className="app-wrapper", children=[
             html.Div(children=[
                 html.Span("VeryBerry", className="brand-berry"),
                 html.Span("Lab", className="brand-lab"),
-                html.Div("Phenotyping Analytics", className="brand-sub"),
+                html.Div("Strawberry Trait Analysis", className="brand-sub"),
             ]),
         ]),
         html.Div(className="batch-badges", children=[
@@ -173,7 +173,7 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5001))
     print()
     print("  ╔══════════════════════════════════════════════════╗")
-    print("  ║  VeryBerryLab — Phenotyping Dashboard            ║")
+    print("  ║  VeryBerryLab — Strawberry Trait Analysis         ║")
     print(f"  ║  Open  →  http://localhost:{port:<24}║")
     print("  ╚══════════════════════════════════════════════════╝")
     print()

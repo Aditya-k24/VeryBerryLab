@@ -32,7 +32,7 @@ dash.register_page(__name__, path="/trait-explorer", name="Trait Explorer", orde
 # every cultivar is distinguishable to colour-vision-deficient readers too.
 CV_COLOR = {
     # Batch A
-    "Albion":   "#0072B2", "Cabrio": "#009E73", "Camarosa": "#D55E00",
+    "Albion":   "#0072B2", "Cabrillo": "#009E73", "Camarosa": "#D55E00",
     "Chandler": "#CC79A7", "Finn":   "#8C510A", "Sensation": "#7A7500",
     # Batch B
     "Brilliance": "#E69F00", "Moxie": "#E7298A", "Portola": "#111111",
@@ -77,7 +77,7 @@ def _pub_layout(fig, y_title, *, title=None, x_title="Measurement date",
         template="simple_white",
         height=height,
         margin=dict(l=76, r=196 if legend else 34, t=54 if title else 26, b=58),
-        font=dict(family="IBM Plex Sans, Helvetica, Arial, sans-serif", size=13, color="#222"),
+        font=dict(family="Work Sans, Helvetica, Arial, sans-serif", size=13, color="#222"),
         title=(dict(text=title, x=0.0, xanchor="left",
                     font=dict(size=16, color="#111")) if title else None),
         plot_bgcolor="white", paper_bgcolor="white",
@@ -160,7 +160,6 @@ def _timeseries(df, trait, cvs, err_style, show_raw, show_title):
             color = CV_COLOR.get(cv, "#666")
             elapsed = (g["date"] - batch_start).dt.days
             xs, ys, se = elapsed.tolist(), g["mean"].tolist(), g["se"].tolist()
-            dates_str = g["date"].dt.strftime("%d %b %Y").tolist()
             all_tick_days.update(xs)
 
             if err_style == "band" and len(xs) > 1:
@@ -190,10 +189,8 @@ def _timeseries(df, trait, cvs, err_style, show_raw, show_title):
                 marker=dict(size=7, color=color, symbol=symbol,
                             line=dict(width=1, color="white")),
                 error_y=err,
-                customdata=np.stack(
-                    [np.array(se), g["n"].to_numpy(), np.array(dates_str)], axis=-1),
-                hovertemplate=(f"<b>{cv}</b> ({label})<br>Day %{{x}} "
-                               "(%{customdata[2]})<br>"
+                customdata=np.stack([np.array(se), g["n"].to_numpy()], axis=-1),
+                hovertemplate=(f"<b>{cv}</b> ({label})<br>Day %{{x}}<br>"
                                f"{TRAIT_LABELS.get(trait, trait)}: "
                                "%{y:.2f} ± %{customdata[0]:.2f}<br>"
                                "n = %{customdata[1]}<extra></extra>"),
@@ -204,7 +201,7 @@ def _timeseries(df, trait, cvs, err_style, show_raw, show_title):
         template="simple_white",
         height=540,
         margin=dict(l=76, r=176, t=54, b=58),
-        font=dict(family="IBM Plex Sans, Helvetica, Arial, sans-serif", size=13, color="#222"),
+        font=dict(family="Work Sans, Helvetica, Arial, sans-serif", size=13, color="#222"),
         title=(dict(text=_y_title(trait), x=0.0, xanchor="left",
                     font=dict(size=16, color="#111")) if show_title else None),
         plot_bgcolor="white", paper_bgcolor="white",
@@ -246,13 +243,15 @@ def _endpoint_bar(df, trait, cvs, show_title):
         return _pub_layout(fig, _y_title(trait), legend=False, height=460)
 
     rows.sort(key=lambda rr: rr[2], reverse=True)
+    batch_start = {b: df[df["batch"] == b]["date"].min() for b in ("A", "B")}
     fig = go.Figure(go.Bar(
         x=[r[0] for r in rows], y=[r[2] for r in rows],
         marker=dict(color=[CV_COLOR.get(r[0], "#666") for r in rows],
                     line=dict(width=0)),
         error_y=dict(type="data", array=[r[3] for r in rows],
                      thickness=1.3, width=5, color="#333"),
-        customdata=[[r[3], r[4], pd.Timestamp(r[1]).strftime("%d %b %Y")]
+        customdata=[[r[3], r[4],
+                     f"Day {(pd.Timestamp(r[1]) - batch_start[_batch(r[0])]).days}"]
                     for r in rows],
         hovertemplate=("<b>%{x}</b><br>%{y:.2f} ± %{customdata[0]:.2f} "
                        f"{UNIT.get(trait,'')}<br>n = %{{customdata[1]}} · "
@@ -276,7 +275,10 @@ def _distribution(df, trait, cvs):
 
     cols = min(3, len(dates))
     rows = (len(dates) + cols - 1) // cols
-    titles = [pd.Timestamp(d).strftime("%d %b %Y") for d in dates]
+    batch_start = {b: df[df["batch"] == b]["date"].min() for b in ("A", "B")}
+    date_batches = {d: df[df["date"] == d]["batch"].iloc[0] for d in dates}
+    titles = [f"{date_batches[d]} · Day {(pd.Timestamp(d) - batch_start[date_batches[d]]).days}"
+              for d in dates]
     fig = make_subplots(rows=rows, cols=cols, subplot_titles=titles,
                         horizontal_spacing=0.075, vertical_spacing=0.09)
 
@@ -324,17 +326,17 @@ def _distribution(df, trait, cvs):
         height=max(340, rows * 300),
         margin=dict(l=104, r=28, t=50, b=46),
         plot_bgcolor="white", paper_bgcolor="white", showlegend=False,
-        font=dict(family="IBM Plex Sans, Helvetica, Arial, sans-serif", size=12, color="#222"),
+        font=dict(family="Work Sans, Helvetica, Arial, sans-serif", size=12, color="#222"),
     )
     for ann in fig.layout.annotations:      # subplot titles
-        ann.font = dict(size=13.5, color="#111", family="IBM Plex Serif, Georgia, serif")
+        ann.font = dict(size=13.5, color="#111", family="Fraunces, Georgia, serif")
     return fig
 
 
 def _caption(df, trait):
     single = _n_timepoints(df, trait) <= 1
     if single:
-        return ("Endpoint comparison — this trait was recorded once, at the end "
+        return ("Endpoint comparison: this trait was recorded once, at the end "
                 "of each cohort's season. Bars are cultivar mean ± SE of n = 3 "
                 "replicate plants; error bars = standard error.")
     return ("Mean ± standard error of n = 3 replicate plants per cultivar on each "
@@ -363,7 +365,7 @@ def _dl_group(prefix):
 layout = html.Div([
     html.Div(className="page-header", children=[
         html.H1("Trait Explorer", className="page-title"),
-        html.P("Season trajectories and replicate spread for any trait — "
+        html.P("Season trajectories and replicate spread for any trait, "
                "publication-styled and exportable as PNG or SVG.",
                className="page-subtitle"),
     ]),
@@ -422,7 +424,7 @@ layout = html.Div([
             html.Div(style={"display": "flex", "justifyContent": "space-between",
                             "alignItems": "center", "flexWrap": "wrap", "gap": "8px"},
                      children=[
-                html.H3("Time Series — mean ± SE", className="card-title"),
+                html.H3("Time Series · mean ± SE", className="card-title"),
                 _dl_group("te-ts"),
             ]),
             dcc.Graph(id="te-ts", config=_PUB_CONFIG),

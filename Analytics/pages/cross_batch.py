@@ -118,6 +118,7 @@ def _timeline(df_merged: pd.DataFrame, trait: str, cvs: list[str]) -> go.Figure:
                            showarrow=False, font=dict(size=14, color="#888"))
     else:
         batches = [b for b in _BATCH_ORDER if b in df_merged["pheno_batch"].unique()]
+        study_start = df_merged["date"].min()
         for cv in cvs:
             cvd = df_merged[df_merged["cultivar"] == cv]
             xs, ys, es, meta = [], [], [], []
@@ -128,7 +129,7 @@ def _timeline(df_merged: pd.DataFrame, trait: str, cvs: list[str]) -> go.Figure:
                 n = len(vals)
                 se = float(vals.std(ddof=1) / np.sqrt(n)) if n > 1 else 0.0
                 dcol = cvd[cvd["pheno_batch"] == b]["date"]
-                when = dcol.iloc[0].strftime("%b %Y") if len(dcol) else ""
+                when = f"Day {(dcol.iloc[0] - study_start).days}" if len(dcol) else ""
                 xs.append(b); ys.append(float(vals.mean())); es.append(se)
                 meta.append([round(se, 2), n, when])
             if not xs:
@@ -151,7 +152,7 @@ def _timeline(df_merged: pd.DataFrame, trait: str, cvs: list[str]) -> go.Figure:
         template="simple_white", height=470,
         margin=dict(l=72, r=178, t=28, b=52),
         plot_bgcolor="white", paper_bgcolor="white",
-        xaxis=dict(title=dict(text="Phenotyping batch", font=dict(size=13)),
+        xaxis=dict(title=dict(text="Trait batch", font=dict(size=13)),
                    showgrid=False, ticks="outside", ticklen=5,
                    linecolor="#333", tickcolor="#333", tickfont=dict(size=12)),
         yaxis=dict(title=dict(text=_ALL_TRAIT_LABELS.get(trait, trait), font=dict(size=13)),
@@ -161,7 +162,7 @@ def _timeline(df_merged: pd.DataFrame, trait: str, cvs: list[str]) -> go.Figure:
         legend=dict(x=1.01, y=1, xanchor="left", yanchor="top", font=dict(size=11),
                     tracegroupgap=2, bordercolor="#e6e8ec", borderwidth=1),
         hovermode="closest",
-        font=dict(family="IBM Plex Sans, Helvetica, Arial, sans-serif", size=12, color="#222"),
+        font=dict(family="Work Sans, Helvetica, Arial, sans-serif", size=12, color="#222"),
     )
     return fig
 
@@ -249,7 +250,7 @@ def _dotplot(result: StatsResult | None, trait: str) -> go.Figure:
             tickvals=list(range(n)), ticktext=tick_labels,
             showgrid=False, tickfont=dict(size=12),
         ),
-        font=dict(family="IBM Plex Sans, Helvetica, Arial, sans-serif", size=12),
+        font=dict(family="Work Sans, Helvetica, Arial, sans-serif", size=12),
         hovermode="closest",
     )
     return fig
@@ -288,7 +289,7 @@ def _stats_panel(result: StatsResult | None) -> html.Div:
             html.P("★ = best group (letter 'a').", className="cld-info"),
         ]),
         html.Div(
-            "KW not significant — post-hoc shown for exploration only.",
+            "KW not significant, post-hoc shown for exploration only.",
             className="exploratory-notice",
             style={"display": "none" if sig else "block"},
         ),
@@ -308,7 +309,7 @@ def _pairwise_table(result: StatsResult | None) -> html.Div:
         cells = [html.Td(ci, className="ph-row")]
         for cj in cvs:
             if ci == cj:
-                cells.append(html.Td("—", className="ph-cell ph-diag"))
+                cells.append(html.Td("-", className="ph-cell ph-diag"))
             else:
                 try:
                     p   = float(ph.loc[ci, cj])
@@ -318,7 +319,7 @@ def _pairwise_table(result: StatsResult | None) -> html.Div:
                         className=f"ph-cell {'ph-sig' if sig else ''}",
                     ))
                 except Exception:
-                    cells.append(html.Td("—", className="ph-cell"))
+                    cells.append(html.Td("-", className="ph-cell"))
         rows.append(html.Tr(cells))
     return html.Div(className="pw-wrap", children=[
         html.P(
@@ -386,9 +387,9 @@ def _eps2_heatmap(batch_stats_cache: dict, df_merged: pd.DataFrame) -> go.Figure
         height=max(380, len(traits) * 28 + 90),
         margin=dict(l=250, r=90, t=40, b=60),
         plot_bgcolor="white", paper_bgcolor="white",
-        xaxis=dict(title="Phenotyping Batch", side="bottom"),
+        xaxis=dict(title="Trait Batch", side="bottom"),
         yaxis=dict(autorange="reversed"),
-        font=dict(family="IBM Plex Sans, Helvetica, Arial, sans-serif", size=11),
+        font=dict(family="Work Sans, Helvetica, Arial, sans-serif", size=11),
     )
     return fig
 
@@ -399,7 +400,7 @@ layout = html.Div([
     html.Div(className="page-header", children=[
         html.H1("Cross-Batch Longitudinal View", className="page-title"),
         html.P(
-            "Cultivar trajectories across phenotyping batches 1–5 (2024–2026+). "
+            "Cultivar trajectories across trait batches 1–5 (2024–2026+). "
             "Same statistical engine as all other pages: "
             "KW · ε² · Conover–Iman · Holm · CLD. "
             "New cultivars Monterey & Fronteras appear as batch snapshots only.",
@@ -452,9 +453,9 @@ layout = html.Div([
         html.Div(className="card", children=[
             html.H3("Cross-Batch Trajectory (Pheno 1 → 5)", className="card-title"),
             html.P(
-                "Each cultivar's mean ± SE across phenotyping batches. Batches are "
-                "discrete measurement campaigns (2024–2026), shown evenly spaced — "
-                "a line spanning a gap means that cultivar was not measured in the "
+                "Each cultivar's mean ± SE across trait batches. Batches are "
+                "discrete measurement campaigns (2024–2026), shown evenly spaced. "
+                "A line spanning a gap means that cultivar was not measured in the "
                 "skipped batch. Per-batch cultivar statistics are below.",
                 className="card-subtitle",
             ),
@@ -504,11 +505,11 @@ layout = html.Div([
 
         # ── Section 3: ε² heatmap ────────────────────────────────────────
         html.Div(className="card", children=[
-            html.H3("Effect Size Heatmap (ε²) — Batch × Trait", className="card-title"),
+            html.H3("Effect Size Heatmap (ε²) · Batch × Trait", className="card-title"),
             html.P(
                 "Colour = ε² (cultivar differentiation strength per batch × trait). "
                 "Annotations = significance stars (* p<0.05 · ** p<0.01 · *** p<0.001). "
-                "KW, Conover–Iman post-hoc, Holm correction — same engine as Season Summary.",
+                "KW, Conover–Iman post-hoc, Holm correction: same engine as Season Summary.",
                 className="card-subtitle",
             ),
             dcc.Graph(id="cb-heatmap", config=GRAPH_CONFIG),
@@ -555,10 +556,10 @@ def update(trait, cvs, alpha, batch):
     # Batch meta
     if result:
         b_date = df_merged[df_merged["pheno_batch"] == batch]["date"].iloc[0] if not df_merged.empty else None
-        date_str = b_date.strftime("%d %b %Y") if b_date is not None else "—"
-        meta = f"{batch} · {date_str} · {len(result.cultivars)} cultivars · n = {sum(result.n_per_cv.values())} obs"
+        day_str = f"Day {(b_date - df_merged['date'].min()).days}" if b_date is not None else "-"
+        meta = f"{batch} · {day_str} · {len(result.cultivars)} cultivars · n = {sum(result.n_per_cv.values())} obs"
     else:
-        meta = f"{batch} — no data for this trait"
+        meta = f"{batch}: no data for this trait"
 
     # ε² heatmap
     fig_hm = _eps2_heatmap(bstats, df_merged)

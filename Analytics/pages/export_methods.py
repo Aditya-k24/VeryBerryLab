@@ -15,12 +15,12 @@ dash.register_page(__name__, path="/export", name="Export & Methods", order=5)
 
 METHODS = [
     ("Data ingestion",
-     "Workbook read with openpyxl (data_only=True — cached formula values). "
+     "Workbook read with openpyxl (data_only=True, cached formula values). "
      "Wide cross-tab (columns = date × replicate, rows = traits) pivoted to tidy "
      "row-per-replicate table. Cells containing '-' recorded as NaN, not zero."),
 
     ("Batches",
-     "Batch A: Albion, Cabrio, Camarosa, Chandler, Finn, Sensation. "
+     "Batch A: Albion, Cabrillo, Camarosa, Chandler, Finn, Sensation. "
      "Batch B: Brilliance, Moxie, Portola, Radiance, Ruby June. "
      "Comparisons are within-batch; no cross-batch 'same-day' comparisons are made."),
 
@@ -39,7 +39,7 @@ METHODS = [
      "when the omnibus is not significant."),
 
     ("Multiple comparisons correction",
-     "Holm step-down correction (default) — controls family-wise error rate, "
+     "Holm step-down correction (default), controls family-wise error rate, "
      "more powerful than Bonferroni. Bonferroni available as a conservative alternative. "
      "Reference: Holm (1979)."),
 

@@ -24,29 +24,42 @@ dash.register_page(__name__, path="/", name="Data Health", order=0)
 # ---------------------------------------------------------------------------
 
 def _timeline_fig(df):
+    # Days elapsed since each batch's own first measurement date — Batch A and
+    # Batch B start on different calendar dates, so "days elapsed" (not calendar
+    # date) is what makes the two batches comparable. Same convention as Trait
+    # Explorer's "Day 0 / Day 14 / Day 28…" x-axis.
     colors = {"A": "#56B4E9", "B": "#E69F00"}
+    batch_start = {b: df[df["batch"] == b]["date"].min() for b in ("A", "B")}
     fig = go.Figure()
+    all_tick_days: set[int] = set()
     for batch, cvs in [("A", BATCH_A), ("B", BATCH_B)]:
         cvs_present = sorted(c for c in cvs if c in df["cultivar"].values)
+        bstart = batch_start[batch]
         for i, cv in enumerate(cvs_present):
             cv_dates = sorted(df[df["cultivar"] == cv]["date"].unique())
+            elapsed = [(pd.Timestamp(d) - bstart).days for d in cv_dates]
+            all_tick_days.update(elapsed)
             fig.add_trace(go.Scatter(
-                x=cv_dates, y=[cv] * len(cv_dates),
+                x=elapsed, y=[cv] * len(elapsed),
                 mode="markers",
                 marker=dict(size=13, color=colors[batch], symbol="diamond",
                             line=dict(width=1, color="white")),
                 name=f"Batch {batch}",
                 legendgroup=f"Batch {batch}",
                 showlegend=(i == 0),
-                hovertemplate=f"<b>{cv}</b><br>%{{x|%d %b %Y}}<extra>Batch {batch}</extra>",
+                hovertemplate=(f"<b>{cv}</b><br>Day %{{x}}"
+                                "<extra>Batch " + batch + "</extra>"),
             ))
+    tickvals = sorted(all_tick_days)
     fig.update_layout(
         height=300, margin=dict(l=120, r=20, t=10, b=40),
         plot_bgcolor="white", paper_bgcolor="white",
-        xaxis=dict(tickformat="%d %b", showgrid=True, gridcolor="#f0f0f0"),
+        xaxis=dict(title=dict(text="Days since first measurement", font=dict(size=12)),
+                    tickvals=tickvals, ticktext=[f"Day {d}" for d in tickvals],
+                    showgrid=True, gridcolor="#f0f0f0"),
         yaxis=dict(autorange="reversed"),
         legend=dict(orientation="h", x=0.5, xanchor="center", y=-0.22),
-        font=dict(family="IBM Plex Sans, Helvetica, Arial, sans-serif", size=12),
+        font=dict(family="Work Sans, Helvetica, Arial, sans-serif", size=12),
     )
     return fig
 
@@ -55,7 +68,14 @@ def _completeness_fig(df, selected_trait):
     comp = cache.completeness
     all_dates = sorted(df["date"].unique())
     cv_order  = sorted(df["cultivar"].unique())
-    x_labels  = [pd.Timestamp(d).strftime("%d %b") for d in all_dates]
+    # Days elapsed since each date's own batch's first measurement — same
+    # "Day N" convention as Trait Explorer, instead of a raw calendar date.
+    batch_start = {b: df[df["batch"] == b]["date"].min() for b in ("A", "B")}
+    date_batch  = {d: df[df["date"] == d]["batch"].iloc[0] for d in all_dates}
+    # Batch A and B each start their own "Day 0", so the batch letter disambiguates
+    # what would otherwise be two identically-labelled columns on one shared axis.
+    x_labels    = [f"{date_batch[d]} · Day {(pd.Timestamp(d) - batch_start[date_batch[d]]).days}"
+                   for d in all_dates]
 
     if selected_trait == "all":
         # % of traits observed per (cultivar, date)
@@ -94,7 +114,7 @@ def _completeness_fig(df, selected_trait):
         plot_bgcolor="white", paper_bgcolor="white",
         xaxis=dict(tickangle=-40),
         yaxis=dict(autorange="reversed"),
-        font=dict(family="IBM Plex Sans, Helvetica, Arial, sans-serif", size=12),
+        font=dict(family="Work Sans, Helvetica, Arial, sans-serif", size=12),
     )
     return fig
 
@@ -109,21 +129,21 @@ def _hero():
     n_dt = df["date"].nunique() if not df.empty else 0
     n_ob = len(df)
     n_tr = len(TRAIT_COLS)
-    span = (f"{df['date'].min():%b} – {df['date'].max():%b %Y}" if not df.empty else "")
+    span = (f"{(df['date'].max() - df['date'].min()).days}-day" if not df.empty else "")
     complete = (100 - df[TRAIT_COLS].isna().mean().mean() * 100) if not df.empty else 0
     chip = lambda v, l: html.Div(className="hero-chip", children=[html.B(str(v)), html.Span(l)])
     return html.Div(className="hero", children=[
         html.Div(className="hero-glow"),
         html.Div(className="hero-glow two"),
-        html.Div("VeryBerryLab · Phenotyping Batch 4", className="hero-eyebrow"),
+        html.Div("VeryBerryLab · Trait Analysis · Batch 4", className="hero-eyebrow"),
         html.H1(className="hero-title", children=[
-            "Strawberry ", html.Span("phenotyping", className="accent"), " analytics"]),
+            "Strawberry ", html.Span("trait", className="accent"), " analysis"]),
         html.P("Vegetative and reproductive architecture of eleven strawberry "
-               "cultivars across a full growing season — ingestion, statistics, "
+               "cultivars across a full growing season: ingestion, statistics, "
                "and publication-ready figures in one place.",
                className="hero-sub"),
         html.Div(className="hero-stats", children=[
-            chip(n_cv, "Cultivars"), chip(n_dt, "Dates"),
+            chip(n_cv, "Cultivars"), chip(n_dt, "Days measured"),
             chip(n_tr, "Traits"), chip(n_ob, "Observations"),
             chip(f"{complete:.0f}%", "Complete"), chip(span, "Season"),
         ]),
