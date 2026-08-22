@@ -1,4 +1,4 @@
-# VeryBerryLab Dashboard — Data & Visualisation Guide
+# Strawberry Trait Dashboard — Data & Visualisation Guide
 
 This document explains what the data represents biologically, what each page in the dashboard shows, and how to read every chart and table.
 
@@ -18,7 +18,7 @@ The cultivars are split into two staggered measurement schedules called **batche
 
 | Batch | Cultivars |
 |---|---|
-| **A** | Albion, Cabrio, Camarosa\*, Chandler, Finn, Sensation |
+| **A** | Albion, Cabrillo, Camarosa\*, Chandler, Finn, Sensation |
 | **B** | Brilliance, Moxie, Portola, Radiance, Ruby June |
 
 Each cultivar is measured on **6 of the 12 total dates** in the season. Batch A and Batch B don't always share measurement dates — this is intentional scheduling, not missing data.

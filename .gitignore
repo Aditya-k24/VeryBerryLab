@@ -35,11 +35,11 @@ env/
 *.swp
 *.swo
 
-# Generated / processed outputs (reproducible from raw data + code)
-veryberrylab/data/processed/
-
-# Keep raw data in place (tracked intentionally — offline copy of source workbook)
-# To exclude in future add: veryberrylab/data/raw/*.xlsx
-
 # Logs
 *.log
+
+# Veryberry-field is its own repo (github.com/Aditya-k24/Veryberry-field),
+# nested here on disk only for convenience. Never track it from this repo —
+# `git add .` would otherwise commit it as a gitlink/submodule pointer instead
+# of its actual files.
+Veryberry-field/

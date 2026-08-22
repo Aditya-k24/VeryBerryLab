@@ -1,4 +1,4 @@
-# VeryBerryLab — Pheno 4 Dashboard
+# Strawberry Trait Dashboard
 
 An interactive research dashboard for strawberry phenotyping data. Tracks the vegetative and reproductive architecture of 11 strawberry cultivars across a full growing season (April–July 2025).
 
@@ -21,7 +21,7 @@ The dashboard answers questions like:
 ## Quick Start
 
 ```bash
-cd veryberrylab
+cd Analytics
 pip install -r requirements.txt
 python3 app.py
 ```
@@ -33,35 +33,38 @@ Open **http://localhost:5001**
 ## Repository Layout
 
 ```
-VeryBerryLab/
-├── veryberrylab/                   ← Main Dash application (run this)
+strawberry-trait-dashboard/         (GitHub: Aditya-k24/strawberry-trait-dashboard)
+├── Analytics/                      ← Main Dash application (run this)
 │   ├── app.py                      ← Entry point; multi-page Dash 4.x app
 │   ├── requirements.txt
-│   ├── ASSUMPTIONS.md              ← Data assumptions & open questions
 │   ├── assets/
-│   │   └── style.css               ← Dark sidebar, white cards, green accent
+│   │   └── style.css               ← Warm-paper editorial theme
 │   ├── pages/
 │   │   ├── data_health.py          ← Page 1: Summary cards, timeline, completeness
 │   │   ├── trait_explorer.py       ← Page 2: Time series + replicate dot plots
 │   │   ├── date_compare.py         ← Page 3: Statistical comparison + CLD
 │   │   ├── season_summary.py       ← Page 4: ε² heatmap + champion table
-│   │   ├── plant_animation.py      ← Page 5: SVG plant architecture schematic
-│   │   └── export_methods.py       ← Page 6: CSV downloads + methods citations
+│   │   ├── cross_batch.py          ← Page 5: Cross-batch trajectory view
+│   │   ├── plant_animation.py      ← Page 6: SVG plant architecture schematic
+│   │   └── export_methods.py       ← Page 7: CSV downloads + methods citations
 │   ├── src/
 │   │   ├── etl.py                  ← Raw Excel → tidy DataFrame + batch_id
 │   │   ├── stats.py                ← KW + ε² + Holm + Conover + CLD engine
 │   │   ├── aggregate.py            ← Season metrics (trend, peak, champion%)
-│   │   ├── data_cache.py           ← Singleton data loader (called once at startup)
-│   │   └── parse_codes.py          ← Phase 2: Worksheet 1 stolon code parser
+│   │   ├── plant_arch.py           ← Daughter-plant architecture reconstruction
+│   │   ├── ws1_parser.py           ← Worksheet 1 stolon code parser
+│   │   └── data_cache.py           ← Singleton data loader (called once at startup)
 │   ├── data/
 │   │   └── raw/                    ← Offline copy of source workbook
 │   └── tests/
-│       └── test_parser.py          ← 35 test cases for parse_codes.py
 │
-├── Analytics/                      ← Previous prototype (for reference)
-├── Phenotyping Data with Aditya 1_27_2026/  ← Historical raw data (Batches 1–3)
+├── Phenotyping Data with Aditya 1_27_2026/  ← Historical raw data (Batches 1–5)
 └── DASHBOARD_GUIDE.md              ← Full guide: what every chart means
 ```
+
+The field-data-collection PWA that feeds this dashboard is a separate repo,
+[`Aditya-k24/veryberry-field`](https://github.com/Aditya-k24/veryberry-field) —
+not part of this one.
 
 ---
 
@@ -73,7 +76,7 @@ Two staggered measurement batches:
 
 | Batch | Cultivars |
 |-------|-----------|
-| **A** | Albion, Cabrio, Camarosa\*, Chandler, Finn, Sensation |
+| **A** | Albion, Cabrillo, Camarosa\*, Chandler, Finn, Sensation |
 | **B** | Brilliance, Moxie, Portola, Radiance, Ruby June |
 
 Each cultivar is measured on **6 of the 12 total dates** in the season. Batch A and B do not share all dates — this is intentional scheduling, not missing data.
@@ -153,7 +156,7 @@ Full statistical methods documentation with citations is included on this page.
 ## Tests
 
 ```bash
-cd veryberrylab
+cd Analytics
 pytest tests/
 ```
 
@@ -182,6 +185,5 @@ statsmodels>=0.14 openpyxl>=3.1      pytest>=7.4
 
 ## Notes
 
-- The `Analytics/` directory is a previous prototype; the current app lives in `veryberrylab/`.
 - Processed CSV outputs (`data/processed/`) are reproducible by running `src/etl.py` + `src/aggregate.py` and are excluded from git.
 - Raw data workbooks are tracked as an offline backup of the canonical source file.
